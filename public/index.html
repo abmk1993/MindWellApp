@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>MindWell — Voice Coach</title>
+<style>
+  :root{
+    --bg:#101816;
+    --bg-soft:#182420;
+    --surface:#1f2e29;
+    --surface-2:#26372f;
+    --ink:#e9f0ec;
+    --ink-dim:#9db4aa;
+    --sage:#8fc7a8;
+    --sage-deep:#57a37f;
+    --sand:#e8c98f;
+    --danger:#e08b8b;
+    --radius:18px;
+    --font-display:'Georgia','Times New Roman',serif;
+    --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    font-family:var(--font-body);background:var(--bg);color:var(--ink);
+    display:flex;flex-direction:column;max-width:520px;margin:0 auto;
+    height:100dvh;overflow:hidden;
+  }
+
+  header{
+    padding:14px 18px 10px;display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px solid rgba(143,199,168,.12);
+    background:linear-gradient(180deg,var(--bg-soft),var(--bg));flex-shrink:0;
+  }
+  .brand{display:flex;align-items:center;gap:10px}
+  .avatar{
+    width:40px;height:40px;border-radius:50%;
+    background:radial-gradient(circle at 32% 30%,var(--sage),var(--sage-deep));
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--font-display);font-size:19px;color:#0e1a15;position:relative;
+  }
+  .avatar.speaking{animation:breathe 1.4s ease-in-out infinite}
+  @keyframes breathe{
+    0%,100%{box-shadow:0 0 0 0 rgba(143,199,168,.45)}
+    50%{box-shadow:0 0 0 12px rgba(143,199,168,0)}
+  }
+  .brand h1{font-family:var(--font-display);font-size:19px;font-weight:400;letter-spacing:.3px}
+  .brand small{display:block;font-size:11px;color:var(--ink-dim)}
+  .header-btns{display:flex;gap:8px}
+  .icon-btn{
+    width:38px;height:38px;border-radius:12px;border:1px solid rgba(143,199,168,.2);
+    background:transparent;color:var(--sage);font-size:17px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;transition:background .2s;
+  }
+  .icon-btn:active{background:var(--surface)}
+  .icon-btn.on{background:var(--sage);color:#0e1a15;border-color:var(--sage)}
+
+  .approaches{display:flex;gap:8px;overflow-x:auto;padding:10px 18px;scrollbar-width:none;flex-shrink:0}
+  .approaches::-webkit-scrollbar{display:none}
+  .chip{
+    flex-shrink:0;padding:7px 14px;border-radius:999px;font-size:13px;
+    border:1px solid rgba(143,199,168,.25);background:transparent;color:var(--ink-dim);
+    cursor:pointer;transition:all .2s;white-space:nowrap;
+  }
+  .chip.active{background:var(--sage);color:#0e1a15;border-color:var(--sage);font-weight:600}
+
+  #chat{flex:1;overflow-y:auto;padding:16px 18px 8px;display:flex;flex-direction:column;gap:12px;
+    overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(143,199,168,.35) transparent}
+  #chat::-webkit-scrollbar{width:5px}
+  #chat::-webkit-scrollbar-track{background:transparent}
+  #chat::-webkit-scrollbar-thumb{background:rgba(143,199,168,.3);border-radius:3px}
+  #chat::-webkit-scrollbar-thumb:hover{background:rgba(143,199,168,.55)}
+  .sheet{scrollbar-width:thin;scrollbar-color:rgba(143,199,168,.35) transparent}
+  .sheet::-webkit-scrollbar{width:5px}
+  .sheet::-webkit-scrollbar-thumb{background:rgba(143,199,168,.3);border-radius:3px}
+
+  .scroll-down{
+    position:absolute;right:16px;bottom:96px;z-index:6;
+    width:40px;height:40px;border-radius:50%;border:1px solid rgba(143,199,168,.35);
+    background:var(--surface-2);color:var(--sage);font-size:17px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 4px 14px rgba(0,0,0,.35);
+    opacity:0;pointer-events:none;transform:translateY(8px);
+    transition:opacity .2s, transform .2s;
+  }
+  .scroll-down.show{opacity:1;pointer-events:auto;transform:none}
+  .chat-wrap{position:relative;flex:1;display:flex;flex-direction:column;min-height:0}
+  .msg{max-width:86%;padding:12px 15px;border-radius:var(--radius);font-size:15px;line-height:1.55;
+    animation:pop .25s ease;white-space:pre-wrap}
+  @keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .msg.user{align-self:flex-end;background:var(--sage-deep);color:#0d1712;border-bottom-right-radius:6px}
+  .msg.ai{align-self:flex-start;background:var(--surface);border-bottom-left-radius:6px}
+  .typing{align-self:flex-start;background:var(--surface);border-radius:var(--radius);padding:14px 18px;display:flex;gap:5px}
+  .typing span{width:7px;height:7px;border-radius:50%;background:var(--sage);opacity:.4;animation:blink 1.2s infinite}
+  .typing span:nth-child(2){animation-delay:.2s}
+  .typing span:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
+
+  .mood-card{background:var(--surface);border-radius:var(--radius);padding:16px;text-align:center}
+  .mood-card p{font-size:14px;color:var(--ink-dim);margin-bottom:12px}
+  .moods{display:flex;justify-content:center;gap:10px}
+  .moods button{font-size:26px;background:none;border:none;cursor:pointer;padding:6px;border-radius:12px;transition:transform .15s}
+  .moods button:active{transform:scale(1.25)}
+
+  .quick{display:flex;gap:8px;flex-wrap:wrap;padding:0 2px}
+  .quick button{font-size:12.5px;padding:8px 12px;border-radius:999px;cursor:pointer;
+    background:transparent;border:1px dashed rgba(232,201,143,.4);color:var(--sand);text-align:left}
+
+  /* crisis support card */
+  .crisis-card{
+    background:linear-gradient(135deg,#3a2430,#2c1e28);
+    border:1px solid rgba(224,139,139,.45);
+    border-radius:var(--radius);padding:16px;align-self:stretch;
+  }
+  .crisis-card h3{font-size:15px;color:var(--danger);margin-bottom:6px}
+  .crisis-card p{font-size:13.5px;line-height:1.55;color:var(--ink)}
+
+  .composer{
+    flex-shrink:0;padding:10px 14px calc(12px + env(safe-area-inset-bottom));
+    background:var(--bg-soft);border-top:1px solid rgba(143,199,168,.12);
+    display:flex;gap:8px;align-items:flex-end;position:relative;
+  }
+  #input{
+    flex:1;background:var(--surface);border:1px solid rgba(143,199,168,.18);
+    border-radius:22px;padding:12px 16px;color:var(--ink);font-size:15px;
+    resize:none;max-height:110px;outline:none;font-family:var(--font-body);
+  }
+  #input:focus{border-color:var(--sage)}
+  .round-btn{
+    width:46px;height:46px;border-radius:50%;border:none;cursor:pointer;font-size:19px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;transition:transform .15s,background .2s;
+  }
+  .round-btn:active{transform:scale(.92)}
+  #sendBtn{background:var(--sage);color:#0e1a15}
+  #sendBtn:disabled{opacity:.35}
+
+  .sheet-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:20;opacity:0;pointer-events:none;transition:opacity .25s}
+  .sheet-backdrop.open{opacity:1;pointer-events:auto}
+  .sheet{
+    position:fixed;left:50%;transform:translate(-50%,105%);bottom:0;width:100%;max-width:520px;
+    max-height:80dvh;overflow-y:auto;background:var(--bg-soft);border-radius:22px 22px 0 0;z-index:21;
+    padding:20px 20px 34px;transition:transform .3s ease;
+  }
+  .sheet.open{transform:translate(-50%,0)}
+  .sheet h2{font-family:var(--font-display);font-weight:400;font-size:20px;margin-bottom:4px}
+  .sheet .sub{font-size:13px;color:var(--ink-dim);margin-bottom:16px}
+  .grabber{width:42px;height:4px;border-radius:2px;background:rgba(143,199,168,.3);margin:0 auto 14px}
+  .lib-item{background:var(--surface);border-radius:14px;padding:13px 15px;margin-bottom:10px;cursor:pointer}
+  .lib-item h3{font-size:14.5px;color:var(--sand);font-weight:600;margin-bottom:3px}
+  .lib-item p{font-size:13px;color:var(--ink-dim);line-height:1.45}
+
+  /* settings */
+  .set-group{margin-bottom:20px}
+  .set-group label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-dim);margin-bottom:8px}
+  select{
+    width:100%;background:var(--surface);color:var(--ink);border:1px solid rgba(143,199,168,.25);
+    border-radius:12px;padding:12px 14px;font-size:15px;outline:none;appearance:none;
+  }
+  .seg{display:flex;background:var(--surface);border-radius:12px;padding:4px;gap:4px}
+  .seg button{
+    flex:1;padding:10px 4px;border:none;border-radius:9px;background:transparent;color:var(--ink-dim);
+    font-size:14px;cursor:pointer;transition:all .2s;
+  }
+  .seg button.active{background:var(--sage);color:#0e1a15;font-weight:600}
+  .voice-note{font-size:12px;color:var(--ink-dim);margin-top:8px;line-height:1.5}
+  .test-voice{
+    margin-top:10px;width:100%;padding:12px;border-radius:12px;border:1px dashed rgba(143,199,168,.35);
+    background:transparent;color:var(--sage);font-size:14px;cursor:pointer;
+  }
+
+  .disclaimer{font-size:11px;color:var(--ink-dim);text-align:center;padding:2px 24px 6px;flex-shrink:0}
+
+  /* ---------- ChatGPT-style voice mode ---------- */
+  .voice-overlay{
+    position:fixed;inset:0;z-index:40;
+    background:radial-gradient(120% 100% at 50% 0%, #16251f 0%, #0b1210 70%);
+    display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+    padding:60px 24px calc(40px + env(safe-area-inset-bottom));
+    opacity:0;pointer-events:none;transition:opacity .3s;
+    max-width:520px;margin:0 auto;left:50%;transform:translateX(-50%);width:100%;
+  }
+  .voice-overlay.open{opacity:1;pointer-events:auto}
+
+  .vm-status{font-size:15px;color:var(--ink-dim);letter-spacing:.04em;min-height:22px;text-align:center}
+
+  .orb-zone{display:flex;flex-direction:column;align-items:center;gap:28px;flex:1;justify-content:center}
+  .orb{
+    width:170px;height:170px;border-radius:50%;position:relative;cursor:pointer;
+    background:radial-gradient(circle at 35% 30%, #b8e6cd, var(--sage) 45%, var(--sage-deep) 100%);
+    box-shadow:0 0 60px rgba(143,199,168,.25);
+    transition:transform .3s;
+  }
+  .orb::before,.orb::after{
+    content:'';position:absolute;inset:-14px;border-radius:50%;
+    border:2px solid rgba(143,199,168,.28);opacity:0;
+  }
+  .orb::after{inset:-30px;border-color:rgba(143,199,168,.15)}
+
+  /* listening: expanding rings */
+  .voice-overlay.listening .orb::before{animation:ring 1.8s ease-out infinite}
+  .voice-overlay.listening .orb::after{animation:ring 1.8s .5s ease-out infinite}
+  @keyframes ring{
+    0%{transform:scale(.85);opacity:.9}
+    100%{transform:scale(1.25);opacity:0}
+  }
+  /* thinking: gentle slow pulse, dimmed */
+  .voice-overlay.thinking .orb{
+    animation:thinkPulse 1.6s ease-in-out infinite;
+    filter:saturate(.55) brightness(.85);
+  }
+  @keyframes thinkPulse{0%,100%{transform:scale(.96)}50%{transform:scale(1.02)}}
+  /* speaking: lively bounce */
+  .voice-overlay.speaking .orb{animation:talkBounce .55s ease-in-out infinite}
+  @keyframes talkBounce{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+  /* muted */
+  .voice-overlay.muted .orb{filter:grayscale(.8) brightness(.6)}
+
+  .vm-caption{
+    min-height:48px;max-width:88%;text-align:center;
+    font-size:16px;line-height:1.5;color:var(--ink);
+  }
+  .vm-caption.dim{color:var(--ink-dim);font-size:14px}
+
+  .vm-controls{display:flex;gap:22px;align-items:center}
+  .vm-btn{
+    width:60px;height:60px;border-radius:50%;border:none;cursor:pointer;font-size:22px;
+    display:flex;align-items:center;justify-content:center;transition:transform .15s, background .2s;
+  }
+  .vm-btn:active{transform:scale(.92)}
+  .vm-mute{background:var(--surface-2);color:var(--ink)}
+  .vm-mute.on{background:var(--danger);color:#1a0d0d}
+  .vm-close{background:#3a2a2a;color:#f0b9b9}
+
+  /* waveform icon in composer */
+  #voiceModeBtn{background:var(--sand);color:#1a140a}
+  #voiceModeBtn svg{width:22px;height:22px}
+  @media (prefers-reduced-motion: reduce){
+    .orb,.orb::before,.orb::after{animation:none !important}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="avatar" id="avatar">M</div>
+    <div>
+      <h1>MindWell</h1>
+      <small id="statusLine"></small>
+    </div>
+  </div>
+  <div class="header-btns">
+    <button class="icon-btn" id="libBtn" title="Library">📚</button>
+    <button class="icon-btn" id="settingsBtn" title="Settings">⚙️</button>
+    <button class="icon-btn on" id="voiceToggle" title="Voice replies">🔊</button>
+  </div>
+</header>
+
+<div class="approaches" id="approachBar">
+  <button class="chip active" data-approach="auto">✨ <span data-i="adaptive">Adaptive</span></button>
+  <button class="chip" data-approach="cbt">CBT</button>
+  <button class="chip" data-approach="dbt">DBT</button>
+  <button class="chip" data-approach="act">ACT</button>
+  <button class="chip" data-approach="mindfulness">Mindfulness</button>
+  <button class="chip" data-approach="compassion">Self-Compassion</button>
+  <button class="chip" data-approach="coaching">Coaching</button>
+</div>
+
+<div class="chat-wrap">
+  <div id="chat"></div>
+  <button class="scroll-down" id="scrollDown" title="Scroll to latest">↓</button>
+</div>
+
+<div class="composer">
+  <textarea id="input" rows="1"></textarea>
+  <button class="round-btn" id="sendBtn">➤</button>
+  <button class="round-btn" id="voiceModeBtn" title="Voice conversation">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+      <line x1="4"  y1="9"  x2="4"  y2="15"/>
+      <line x1="9"  y1="5"  x2="9"  y2="19"/>
+      <line x1="14" y1="8"  x2="14" y2="16"/>
+      <line x1="19" y1="11" x2="19" y2="13"/>
+    </svg>
+  </button>
+</div>
+
+<!-- ChatGPT-style voice conversation overlay -->
+<div class="voice-overlay" id="voiceOverlay">
+  <div class="vm-status" id="vmStatus"></div>
+  <div class="orb-zone">
+    <div class="orb" id="orb"></div>
+    <div class="vm-caption dim" id="vmCaption"></div>
+  </div>
+  <div class="vm-controls">
+    <button class="vm-btn vm-mute" id="vmMuteBtn" title="Mute">🎙</button>
+    <button class="vm-btn vm-close" id="vmCloseBtn" title="End voice chat">✕</button>
+  </div>
+</div>
+<div class="disclaimer" id="disclaimer"></div>
+
+<div class="sheet-backdrop" id="backdrop"></div>
+
+<!-- Library sheet -->
+<div class="sheet" id="libSheet">
+  <div class="grabber"></div>
+  <h2 id="libTitle"></h2>
+  <p class="sub" id="libSub"></p>
+  <div id="libList"></div>
+</div>
+
+<!-- Settings sheet -->
+<div class="sheet" id="setSheet">
+  <div class="grabber"></div>
+  <h2 id="setTitle"></h2>
+  <p class="sub" id="setSub"></p>
+
+  <div class="set-group">
+    <label id="langLabel"></label>
+    <select id="langSelect">
+      <option value="en">English</option>
+      <option value="hy">Հայերեն (Armenian)</option>
+      <option value="ru">Русский (Russian)</option>
+      <option value="es">Español (Spanish)</option>
+      <option value="fr">Français (French)</option>
+      <option value="de">Deutsch (German)</option>
+    </select>
+  </div>
+
+  <div class="set-group">
+    <label id="genderLabel"></label>
+    <div class="seg" id="genderSeg">
+      <button data-g="auto" class="active">Auto</button>
+      <button data-g="female" id="gFemale"></button>
+      <button data-g="male" id="gMale"></button>
+    </div>
+  </div>
+
+  <div class="set-group">
+    <label id="voiceLabel"></label>
+    <select id="voiceSelect"></select>
+    <button class="test-voice" id="testVoice"></button>
+    <p class="voice-note" id="voiceNote"></p>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   I18N — UI strings per language
+   ========================================================= */
+const I18N = {
+  en:{
+    name:'English', srLang:'en-US', tagline:'Evidence-based support',
+    placeholder:"Say or type what's on your mind…", listening:'🎙 Listening… speak now',
+    disclaimer:'MindWell is a supportive companion, not a replacement for licensed care. In crisis, contact local emergency services.',
+    welcome:"Hi, I'm MindWell. I draw on the most effective modern approaches — CBT, DBT, ACT, mindfulness and more — and we can talk by voice: tap the mic to speak, and I'll answer out loud.\n\nBefore we start, how are you feeling right now?",
+    moodPrompt:'Tap the emoji closest to your mood',
+    moodLabels:['really struggling','low','neutral','pretty good','great'],
+    moodMsg:'Mood check-in',
+    pickPrompt:'Pick one of these, type, or just tap the mic and talk to me.',
+    quick:['I feel anxious and my thoughts are racing','Help me stop overthinking','I keep procrastinating on something important','I had a conflict with someone close to me','I want to build better habits','Guide me through a 2-minute breathing exercise'],
+    approachSwitch:n=>`Okay — I'll work with you through a ${n} lens now. What would you like to focus on?`,
+    teach:n=>`Teach me the essentials of ${n} and how I can apply it to my life this week.`,
+    error:'I had trouble connecting just now. Take a breath — and try sending that again in a moment.',
+    libTitle:'Knowledge foundations', libSub:'The approaches and landmark books MindWell draws on. Tap any item to explore it.',
+    setTitle:'Voice & language', setSub:'Choose your language and the voice you want to hear.',
+    langLabel:'Language', genderLabel:'Voice', voiceLabel:'Specific voice', female:'Female', male:'Male',
+    testVoice:'▶ Test this voice', testPhrase:'Hello, I am MindWell. I am here with you.',
+    voiceNote:'Available voices depend on your device and browser. On iPhone/Android you can install more voices in system settings. If your language has no voice installed, replies will show as text.',
+    crisisTitle:'You matter — please reach out',
+    crisisBody:'What you just shared sounds really heavy, and I want you to be safe. If you are thinking about hurting yourself, please contact your local emergency number (112 / 911) or a crisis hotline right now, or reach out to someone you trust. I will stay here with you too.',
+    vmListening:'Listening…', vmThinking:'Thinking…', vmSpeaking:'Speaking… tap the orb to interrupt', vmMuted:'Microphone muted', vmHint:'Just start talking — I\'ll answer out loud', vmUnsupported:'Voice input isn\'t supported in this browser. Try Chrome or Safari.',
+    session:'session'
+  },
+  hy:{
+    name:'Հայերեն', srLang:'hy-AM', tagline:'Գիտականորեն հիմնավորված աջակցություն',
+    placeholder:'Ասա կամ գրիր, ինչ կա մտքիդ…', listening:'🎙 Լսում եմ… խոսիր',
+    disclaimer:'MindWell-ը աջակցող ուղեկից է, ոչ թե լիցենզավորված բուժման փոխարինող։ Ճգնաժամի դեպքում դիմեք շտապ օգնություն (112)։',
+    welcome:'Բարև, ես MindWell-ն եմ։ Ես հիմնվում եմ ամենաարդյունավետ ժամանակակից մոտեցումների վրա՝ CBT, DBT, ACT, մայնդֆուլնես և այլն, և կարող ենք խոսել ձայնով՝ սեղմիր խոսափողը, և ես կպատասխանեմ ձայնով։\n\nՆախքան սկսելը՝ ինչպե՞ս ես քեզ զգում հիմա։',
+    moodPrompt:'Ընտրիր տրամադրությանդ ամենամոտ էմոջին',
+    moodLabels:['շատ վատ','վատ','չեզոք','լավ','հիանալի'],
+    moodMsg:'Տրամադրության ստուգում',
+    pickPrompt:'Ընտրիր տարբերակներից մեկը, գրիր կամ սեղմիր խոսափողը և խոսիր ինձ հետ։',
+    quick:['Ես անհանգիստ եմ, մտքերս խառնված են','Օգնիր ինձ դադարել շատ մտածել','Ես հետաձգում եմ կարևոր գործը','Կոնֆլիկտ ունեցա մտերիմ մարդու հետ','Ուզում եմ լավ սովորություններ ձևավորել','Ուղղորդիր ինձ 2 րոպեանոց շնչառական վարժությամբ'],
+    approachSwitch:n=>`Լավ, հիմա կաշխատենք ${n} մոտեցմամբ։ Ինչի՞ վրա կուզես կենտրոնանալ։`,
+    teach:n=>`Սովորեցրու ինձ ${n}-ի հիմունքները և ինչպես կիրառել այն այս շաբաթ։`,
+    error:'Կապի խնդիր առաջացավ։ Շնչիր խորը և փորձիր նորից մի պահից։',
+    libTitle:'Գիտելիքի հիմքեր', libSub:'Մոտեցումներն ու գրքերը, որոնց վրա հիմնվում է MindWell-ը։ Սեղմիր ցանկացածի վրա։',
+    setTitle:'Ձայն և լեզու', setSub:'Ընտրիր լեզուն և ձայնը, որը կուզես լսել։',
+    langLabel:'Լեզու', genderLabel:'Ձայն', voiceLabel:'Կոնկրետ ձայն', female:'Կանացի', male:'Տղամարդու',
+    testVoice:'▶ Փորձարկել ձայնը', testPhrase:'Բարև, ես MindWell-ն եմ։ Ես քո կողքին եմ։',
+    voiceNote:'Հասանելի ձայները կախված են սարքից և բրաուզերից։ Հայերեն ձայները սահմանափակ են շատ սարքերում. եթե ձայն չկա, պատասխանները կցուցադրվեն որպես տեքստ։',
+    crisisTitle:'Դու կարևոր ես — խնդրում եմ, դիմիր օգնության',
+    crisisBody:'Այն, ինչ կիսվեցիր, շատ ծանր է հնչում, և ես ուզում եմ, որ դու ապահով լինես։ Եթե մտածում ես ինքդ քեզ վնասելու մասին, խնդրում եմ հենց հիմա զանգիր 112 կամ վստահության թեժ գիծ, կամ դիմիր վստահելի մարդու։ Ես նույնպես այստեղ եմ քեզ հետ։',
+    vmListening:'Լսում եմ…', vmThinking:'Մտածում եմ…', vmSpeaking:'Խոսում եմ… սեղմիր գունդը՝ ընդհատելու համար', vmMuted:'Խոսափողն անջատված է', vmHint:'Պարզապես սկսիր խոսել — ես կպատասխանեմ ձայնով', vmUnsupported:'Ձայնային մուտքը չի աջակցվում այս բրաուզերում։ Փորձիր Chrome կամ Safari։',
+    session:'սեսիա'
+  },
+  ru:{
+    name:'Русский', srLang:'ru-RU', tagline:'Научно обоснованная поддержка',
+    placeholder:'Скажи или напиши, что у тебя на душе…', listening:'🎙 Слушаю… говори',
+    disclaimer:'MindWell — поддерживающий помощник, а не замена лицензированной помощи. В кризисной ситуации звоните в экстренные службы (112).',
+    welcome:'Привет, я MindWell. Я опираюсь на самые эффективные современные подходы — КПТ, ДБТ, ACT, майндфулнес и другие — и мы можем говорить голосом: нажми на микрофон, и я отвечу вслух.\n\nПрежде чем начнём — как ты себя сейчас чувствуешь?',
+    moodPrompt:'Выбери эмодзи, ближе всего к твоему настроению',
+    moodLabels:['очень тяжело','плохо','нейтрально','неплохо','отлично'],
+    moodMsg:'Настроение',
+    pickPrompt:'Выбери вариант, напиши сам или просто нажми на микрофон и говори со мной.',
+    quick:['Я тревожусь, мысли скачут','Помоги перестать всё обдумывать по кругу','Я прокрастинирую важное дело','У меня конфликт с близким человеком','Хочу выстроить полезные привычки','Проведи со мной 2-минутное дыхательное упражнение'],
+    approachSwitch:n=>`Хорошо — теперь работаем через призму ${n}. На чём хочешь сосредоточиться?`,
+    teach:n=>`Объясни мне основы подхода ${n} и как применить его в жизни на этой неделе.`,
+    error:'Возникла проблема с подключением. Сделай вдох — и попробуй отправить ещё раз через минуту.',
+    libTitle:'Основы знаний', libSub:'Подходы и ключевые книги, на которые опирается MindWell. Нажми на любой пункт.',
+    setTitle:'Голос и язык', setSub:'Выбери язык и голос, который хочешь слышать.',
+    langLabel:'Язык', genderLabel:'Голос', voiceLabel:'Конкретный голос', female:'Женский', male:'Мужской',
+    testVoice:'▶ Прослушать голос', testPhrase:'Привет, я MindWell. Я рядом с тобой.',
+    voiceNote:'Доступные голоса зависят от устройства и браузера. На iPhone/Android можно установить дополнительные голоса в настройках системы.',
+    crisisTitle:'Ты важен — пожалуйста, обратись за помощью',
+    crisisBody:'То, чем ты поделился, звучит очень тяжело, и я хочу, чтобы ты был в безопасности. Если ты думаешь о причинении себе вреда, пожалуйста, прямо сейчас позвони по номеру экстренных служб (112) или на телефон доверия, либо обратись к человеку, которому доверяешь. Я тоже остаюсь здесь, с тобой.',
+    vmListening:'Слушаю…', vmThinking:'Думаю…', vmSpeaking:'Говорю… нажми на шар, чтобы перебить', vmMuted:'Микрофон выключен', vmHint:'Просто начни говорить — я отвечу вслух', vmUnsupported:'Голосовой ввод не поддерживается в этом браузере. Попробуй Chrome или Safari.',
+    session:'сессия'
+  },
+  es:{
+    name:'Español', srLang:'es-ES', tagline:'Apoyo basado en evidencia',
+    placeholder:'Di o escribe lo que tienes en mente…', listening:'🎙 Escuchando… habla',
+    disclaimer:'MindWell es un acompañante de apoyo, no un sustituto de atención profesional. En crisis, contacta los servicios de emergencia (112).',
+    welcome:'Hola, soy MindWell. Me baso en los enfoques modernos más eficaces — TCC, DBT, ACT, mindfulness y más — y podemos hablar por voz: toca el micrófono y te responderé en voz alta.\n\nAntes de empezar, ¿cómo te sientes ahora?',
+    moodPrompt:'Toca el emoji más cercano a tu estado de ánimo',
+    moodLabels:['muy mal','bajo','neutral','bastante bien','genial'],
+    moodMsg:'Estado de ánimo',
+    pickPrompt:'Elige una opción, escribe, o simplemente toca el micrófono y háblame.',
+    quick:['Me siento ansioso y mis pensamientos se aceleran','Ayúdame a dejar de sobrepensar','Sigo procrastinando algo importante','Tuve un conflicto con alguien cercano','Quiero construir mejores hábitos','Guíame en un ejercicio de respiración de 2 minutos'],
+    approachSwitch:n=>`Bien — ahora trabajaremos con el enfoque ${n}. ¿En qué te gustaría centrarte?`,
+    teach:n=>`Enséñame lo esencial de ${n} y cómo aplicarlo a mi vida esta semana.`,
+    error:'Tuve un problema de conexión. Respira — e inténtalo de nuevo en un momento.',
+    libTitle:'Fundamentos de conocimiento', libSub:'Los enfoques y libros clave en los que se basa MindWell.',
+    setTitle:'Voz e idioma', setSub:'Elige tu idioma y la voz que quieres escuchar.',
+    langLabel:'Idioma', genderLabel:'Voz', voiceLabel:'Voz específica', female:'Femenina', male:'Masculina',
+    testVoice:'▶ Probar esta voz', testPhrase:'Hola, soy MindWell. Estoy aquí contigo.',
+    voiceNote:'Las voces disponibles dependen de tu dispositivo y navegador.',
+    crisisTitle:'Importas — por favor busca ayuda',
+    crisisBody:'Lo que compartiste suena muy pesado y quiero que estés a salvo. Si piensas en hacerte daño, por favor llama ahora mismo al número de emergencias (112) o a una línea de crisis, o acude a alguien de confianza. Yo también me quedo aquí contigo.',
+    vmListening:'Escuchando…', vmThinking:'Pensando…', vmSpeaking:'Hablando… toca la esfera para interrumpir', vmMuted:'Micrófono silenciado', vmHint:'Solo empieza a hablar — responderé en voz alta', vmUnsupported:'La entrada de voz no es compatible con este navegador. Prueba Chrome o Safari.',
+    session:'sesión'
+  },
+  fr:{
+    name:'Français', srLang:'fr-FR', tagline:'Soutien fondé sur des preuves',
+    placeholder:'Dis ou écris ce que tu as en tête…', listening:'🎙 J\'écoute… parle',
+    disclaimer:'MindWell est un compagnon de soutien, pas un substitut à des soins professionnels. En cas de crise, contactez les urgences (112).',
+    welcome:'Bonjour, je suis MindWell. Je m\'appuie sur les approches modernes les plus efficaces — TCC, DBT, ACT, pleine conscience et plus — et nous pouvons parler par la voix : touche le micro et je répondrai à voix haute.\n\nAvant de commencer, comment te sens-tu maintenant ?',
+    moodPrompt:'Touche l\'emoji le plus proche de ton humeur',
+    moodLabels:['très mal','bas','neutre','plutôt bien','super'],
+    moodMsg:'Humeur',
+    pickPrompt:'Choisis une option, écris, ou touche simplement le micro et parle-moi.',
+    quick:['Je me sens anxieux, mes pensées s\'emballent','Aide-moi à arrêter de trop réfléchir','Je procrastine quelque chose d\'important','J\'ai eu un conflit avec un proche','Je veux construire de meilleures habitudes','Guide-moi dans un exercice de respiration de 2 minutes'],
+    approachSwitch:n=>`D'accord — travaillons maintenant avec l'approche ${n}. Sur quoi veux-tu te concentrer ?`,
+    teach:n=>`Apprends-moi l'essentiel de ${n} et comment l'appliquer cette semaine.`,
+    error:'Problème de connexion. Respire — et réessaie dans un instant.',
+    libTitle:'Fondements de connaissances', libSub:'Les approches et livres clés sur lesquels s\'appuie MindWell.',
+    setTitle:'Voix et langue', setSub:'Choisis ta langue et la voix que tu veux entendre.',
+    langLabel:'Langue', genderLabel:'Voix', voiceLabel:'Voix spécifique', female:'Féminine', male:'Masculine',
+    testVoice:'▶ Tester cette voix', testPhrase:'Bonjour, je suis MindWell. Je suis là avec toi.',
+    voiceNote:'Les voix disponibles dépendent de ton appareil et navigateur.',
+    crisisTitle:'Tu comptes — demande de l\'aide',
+    crisisBody:'Ce que tu viens de partager semble très lourd et je veux que tu sois en sécurité. Si tu penses à te faire du mal, appelle tout de suite le numéro d\'urgence (112) ou une ligne d\'écoute, ou tourne-toi vers une personne de confiance. Je reste ici avec toi aussi.',
+    vmListening:'J\'écoute…', vmThinking:'Je réfléchis…', vmSpeaking:'Je parle… touche la sphère pour m\'interrompre', vmMuted:'Micro coupé', vmHint:'Commence simplement à parler — je répondrai à voix haute', vmUnsupported:'L\'entrée vocale n\'est pas prise en charge par ce navigateur. Essaie Chrome ou Safari.',
+    session:'séance'
+  },
+  de:{
+    name:'Deutsch', srLang:'de-DE', tagline:'Evidenzbasierte Unterstützung',
+    placeholder:'Sag oder schreib, was dich beschäftigt…', listening:'🎙 Ich höre zu… sprich',
+    disclaimer:'MindWell ist ein unterstützender Begleiter, kein Ersatz für professionelle Behandlung. In Krisen: Notruf 112.',
+    welcome:'Hallo, ich bin MindWell. Ich stütze mich auf die wirksamsten modernen Ansätze — KVT, DBT, ACT, Achtsamkeit und mehr — und wir können per Stimme sprechen: Tippe aufs Mikrofon und ich antworte laut.\n\nBevor wir anfangen: Wie fühlst du dich gerade?',
+    moodPrompt:'Tippe auf das Emoji, das deiner Stimmung am nächsten kommt',
+    moodLabels:['sehr schwer','niedergeschlagen','neutral','ziemlich gut','großartig'],
+    moodMsg:'Stimmung',
+    pickPrompt:'Wähle eine Option, schreib selbst, oder tippe einfach aufs Mikrofon und sprich mit mir.',
+    quick:['Ich bin ängstlich und meine Gedanken rasen','Hilf mir, das Grübeln zu stoppen','Ich schiebe etwas Wichtiges auf','Ich hatte einen Konflikt mit einem nahestehenden Menschen','Ich möchte bessere Gewohnheiten aufbauen','Führe mich durch eine 2-Minuten-Atemübung'],
+    approachSwitch:n=>`Okay — wir arbeiten jetzt mit dem ${n}-Ansatz. Worauf möchtest du dich konzentrieren?`,
+    teach:n=>`Erkläre mir die Grundlagen von ${n} und wie ich es diese Woche anwenden kann.`,
+    error:'Verbindungsproblem. Atme durch — und versuch es gleich noch einmal.',
+    libTitle:'Wissensgrundlagen', libSub:'Die Ansätze und Schlüsselbücher, auf die sich MindWell stützt.',
+    setTitle:'Stimme & Sprache', setSub:'Wähle deine Sprache und die Stimme, die du hören möchtest.',
+    langLabel:'Sprache', genderLabel:'Stimme', voiceLabel:'Bestimmte Stimme', female:'Weiblich', male:'Männlich',
+    testVoice:'▶ Stimme testen', testPhrase:'Hallo, ich bin MindWell. Ich bin hier bei dir.',
+    voiceNote:'Verfügbare Stimmen hängen von Gerät und Browser ab.',
+    crisisTitle:'Du bist wichtig — bitte hol dir Hilfe',
+    crisisBody:'Was du gerade geteilt hast, klingt sehr schwer, und ich möchte, dass du sicher bist. Wenn du daran denkst, dir etwas anzutun, ruf bitte jetzt den Notruf (112) oder eine Telefonseelsorge an, oder wende dich an eine Vertrauensperson. Ich bleibe auch hier bei dir.',
+    vmListening:'Ich höre zu…', vmThinking:'Ich denke nach…', vmSpeaking:'Ich spreche… tippe auf die Kugel zum Unterbrechen', vmMuted:'Mikrofon stumm', vmHint:'Sprich einfach los — ich antworte laut', vmUnsupported:'Spracheingabe wird in diesem Browser nicht unterstützt. Versuche Chrome oder Safari.',
+    session:'Sitzung'
+  }
+};
+
+/* =========================================================
+   CRISIS DETECTION — client-side, multi-language
+   ========================================================= */
+const CRISIS_PATTERNS = [
+  /suicid|kill myself|end my life|end it all|self[- ]?harm|hurt myself|don'?t want to live|want to die|no reason to live/i,
+  /покончить с собой|убить себя|не хочу жить|хочу умереть|самоповрежд|порезать себя|свести счеты/i,
+  /ինքնասպան|չեմ ուզում ապրել|ուզում եմ մեռնել|վնասել ինքս ինձ/i,
+  /suicid|matarme|quitarme la vida|no quiero vivir|hacerme daño|quiero morir/i,
+  /me tuer|mettre fin à mes jours|ne veux plus vivre|me faire du mal|envie de mourir/i,
+  /selbstmord|suizid|mich umbringen|nicht mehr leben|mir wehtun|sterben will/i
+];
+let crisisShown = false;
+function checkCrisis(text){
+  if(crisisShown) return;
+  if(CRISIS_PATTERNS.some(rx=>rx.test(text))){
+    crisisShown = true;
+    const card = document.createElement('div');
+    card.className = 'crisis-card';
+    card.innerHTML = `<h3>♥ ${T().crisisTitle}</h3><p>${T().crisisBody}</p>`;
+    chat.appendChild(card);
+    scrollBottom(true);
+  }
+}
+
+/* =========================================================
+   KNOWLEDGE BASE — evidence-based psychology
+   ========================================================= */
+const KNOWLEDGE = {
+  frameworks: [
+    {id:'cbt', name:'Cognitive Behavioral Therapy (CBT)', gist:'The most researched therapy. Thoughts, feelings and behavior form a loop; identifying and testing distorted thoughts changes emotion. Tools: thought records, cognitive restructuring, behavioral experiments, activity scheduling.', source:'Aaron Beck; David Burns — "Feeling Good"'},
+    {id:'dbt', name:'Dialectical Behavior Therapy (DBT)', gist:'Balances acceptance and change. Four skill modules: mindfulness, distress tolerance (TIPP, ACCEPTS), emotion regulation (opposite action, PLEASE), interpersonal effectiveness (DEAR MAN).', source:'Marsha Linehan — "DBT Skills Training Manual"'},
+    {id:'act', name:'Acceptance & Commitment Therapy (ACT)', gist:'Psychological flexibility over symptom elimination. Six processes: defusion, acceptance, present-moment contact, self-as-context, values, committed action.', source:'Steven Hayes; Russ Harris — "The Happiness Trap"'},
+    {id:'mindfulness', name:'Mindfulness (MBSR / MBCT)', gist:'Non-judgmental present-moment awareness. Strong evidence for stress, depression relapse prevention, anxiety. Tools: body scan, breath anchoring, noting, 5-4-3-2-1 grounding, RAIN.', source:'Jon Kabat-Zinn — "Wherever You Go, There You Are"; Tara Brach — "Radical Acceptance"'},
+    {id:'compassion', name:'Self-Compassion & CFT', gist:'Treating yourself as you would a good friend. Three elements: self-kindness, common humanity, mindfulness. Reduces shame, perfectionism, self-criticism.', source:'Kristin Neff — "Self-Compassion"; Paul Gilbert — CFT; Brené Brown — "The Gifts of Imperfection"'},
+    {id:'coaching', name:'Coaching & Behavior-Change Science', gist:'Goal-directed growth. GROW model (Goal, Reality, Options, Way forward), motivational interviewing, implementation intentions, habit design, growth mindset.', source:'James Clear — "Atomic Habits"; Carol Dweck — "Mindset"; BJ Fogg — "Tiny Habits"'},
+    {id:'positive', name:'Positive Psychology', gist:'Building what is right, not only fixing what is wrong. PERMA model, gratitude practice, character strengths, flow states.', source:'Martin Seligman — "Flourish"; Mihaly Csikszentmihalyi — "Flow"'},
+    {id:'attachment', name:'Attachment & Relationships', gist:'Adult attachment styles (secure, anxious, avoidant) shape relationship patterns. EFT; Gottman research: Four Horsemen and repair attempts.', source:'Amir Levine — "Attached"; Sue Johnson — "Hold Me Tight"; John Gottman'},
+    {id:'trauma', name:'Trauma-Informed Perspective', gist:'Trauma lives in the body and nervous system. Window of tolerance, grounding before processing. Deep trauma work belongs with a licensed clinician.', source:'Bessel van der Kolk — "The Body Keeps the Score"; Peter Levine — Somatic Experiencing'},
+    {id:'meaning', name:'Meaning & Existential Approaches', gist:'Humans can endure almost any "how" with a strong "why". Logotherapy: meaning through work, love, and courage in suffering.', source:'Viktor Frankl — "Man\'s Search for Meaning"; Irvin Yalom'},
+    {id:'nvc', name:'Nonviolent Communication (NVC)', gist:'Conflict framework: Observation → Feeling → Need → Request. Turns blame into unmet needs.', source:'Marshall Rosenberg — "Nonviolent Communication"'},
+    {id:'ifs', name:'Internal Family Systems (IFS) lens', gist:'The mind as a system of parts (protectors, exiles) led by a calm core Self. Useful language for inner conflict.', source:'Richard Schwartz — "No Bad Parts"'}
+  ]
+};
+
+/* =========================================================
+   STATE
+   ========================================================= */
+let history = [];
+let approach = 'auto';
+let mood = null;
+let voiceReplies = true;
+let sessionNum = 1;
+let lang = 'en';
+let genderPref = 'auto';        // auto | female | male
+let chosenVoiceURI = null;      // explicit voice choice
+
+function store(key, val){ try{ if(val===undefined) return localStorage.getItem(key); localStorage.setItem(key,val); }catch(e){ return null; } }
+sessionNum = Number(store('mw_session')||1) || 1;
+store('mw_session', String(sessionNum+1));
+lang = store('mw_lang') || ({'hy':'hy','ru':'ru','es':'es','fr':'fr','de':'de'}[(navigator.language||'en').slice(0,2)] || 'en');
+genderPref = store('mw_gender') || 'auto';
+chosenVoiceURI = store('mw_voice') || null;
+
+const T = ()=> I18N[lang];
+
+/* =========================================================
+   DOM
+   ========================================================= */
+const chat = document.getElementById('chat');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('sendBtn');
+const avatar = document.getElementById('avatar');
+const voiceToggle = document.getElementById('voiceToggle');
+const langSelect = document.getElementById('langSelect');
+const voiceSelect = document.getElementById('voiceSelect');
+
+/* =========================================================
+   VOICES — gender-aware, per-language
+   ========================================================= */
+const FEMALE_NAMES = /samantha|victoria|karen|moira|tessa|fiona|zira|jenny|aria|milena|katya|katia|anna|alice|alva|amelie|amélie|marie|audrey|helena|hedda|katja|monica|mónica|paulina|laura|susan|allison|ava|kate|serena|nicky|joana|luciana|female|woman|femme|frau|жен/i;
+const MALE_NAMES = /daniel|alex\b|fred|thomas|oliver|yuri|pavel|dmitr|artem|david|mark|george|james|diego|jorge|juan|carlos|jacques|nicolas|mathieu|hans|stefan|markus|guy|ryan|aaron|rishi|\bmale|\bman\b|homme|mann|муж/i;
+
+let allVoices = [];
+function loadVoices(){
+  allVoices = speechSynthesis.getVoices();
+  populateVoiceSelect();
+}
+if('speechSynthesis' in window){
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+}
+function voicesForLang(){
+  return allVoices.filter(v => v.lang.toLowerCase().startsWith(lang));
+}
+function guessGender(v){
+  const n = v.name;
+  if(FEMALE_NAMES.test(n)) return 'female';
+  if(MALE_NAMES.test(n)) return 'male';
+  return 'unknown';
+}
+function currentVoice(){
+  const pool = voicesForLang();
+  if(!pool.length) return null;
+  // explicit selection wins if still valid for this language
+  if(chosenVoiceURI){
+    const v = pool.find(v=>v.voiceURI===chosenVoiceURI);
+    if(v) return v;
+  }
+  if(genderPref !== 'auto'){
+    const g = pool.find(v=>guessGender(v)===genderPref);
+    if(g) return g;
+  }
+  // prefer higher-quality / default voices
+  return pool.find(v=>/natural|premium|enhanced|google/i.test(v.name)) || pool.find(v=>v.default) || pool[0];
+}
+function populateVoiceSelect(){
+  const pool = voicesForLang();
+  voiceSelect.innerHTML = '';
+  if(!pool.length){
+    const o = document.createElement('option');
+    o.textContent = '— no voices for this language on this device —';
+    o.value = '';
+    voiceSelect.appendChild(o);
+    return;
+  }
+  const autoOpt = document.createElement('option');
+  autoOpt.value=''; autoOpt.textContent='Auto (best match)';
+  voiceSelect.appendChild(autoOpt);
+  pool.forEach(v=>{
+    const o = document.createElement('option');
+    const g = guessGender(v);
+    o.value = v.voiceURI;
+    o.textContent = `${v.name} ${g==='female'?'♀':g==='male'?'♂':''} (${v.lang})`;
+    voiceSelect.appendChild(o);
+  });
+  voiceSelect.value = (chosenVoiceURI && pool.some(v=>v.voiceURI===chosenVoiceURI)) ? chosenVoiceURI : '';
+}
+voiceSelect.addEventListener('change', ()=>{
+  chosenVoiceURI = voiceSelect.value || null;
+  store('mw_voice', chosenVoiceURI || '');
+});
+
+document.getElementById('genderSeg').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  document.querySelectorAll('#genderSeg button').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  genderPref = b.dataset.g;
+  chosenVoiceURI = null; voiceSelect.value='';
+  store('mw_gender', genderPref); store('mw_voice','');
+});
+
+document.getElementById('testVoice').addEventListener('click', ()=> speak(T().testPhrase, true));
+
+/* =========================================================
+   TTS
+   ========================================================= */
+/* iOS/Chrome block speech that isn't triggered by a user tap.
+   Trick: on the FIRST user gesture, speak a silent utterance to "unlock"
+   the synthesizer — after that, async replies can speak freely. */
+let ttsUnlocked = false;
+function unlockTTS(){
+  if(ttsUnlocked || !('speechSynthesis' in window)) return;
+  try{
+    const u = new SpeechSynthesisUtterance(' ');
+    u.volume = 0;
+    speechSynthesis.speak(u);
+    ttsUnlocked = true;
+  }catch(e){}
+}
+document.addEventListener('pointerdown', unlockTTS, {once:false});
+document.addEventListener('keydown', unlockTTS, {once:false});
+
+function speak(text, force, onDone){
+  if((!voiceReplies && !force) || !('speechSynthesis' in window)){ if(onDone) onDone(); return; }
+  if(!allVoices.length) allVoices = speechSynthesis.getVoices();
+  speechSynthesis.cancel();
+  const clean = text.replace(/[*_#`>~]/g,'').replace(/\s+/g,' ').trim();
+  const u = new SpeechSynthesisUtterance(clean);
+  const v = currentVoice();
+  if(v){ u.voice = v; u.lang = v.lang; } else { u.lang = T().srLang; }
+  u.rate = 0.97; u.pitch = 1.0;
+  let done = false;
+  const finish = ()=>{ avatar.classList.remove('speaking'); if(!done){ done = true; if(onDone) onDone(); } };
+  u.onstart = ()=> avatar.classList.add('speaking');
+  u.onend = finish; u.onerror = finish;
+  setTimeout(()=> speechSynthesis.speak(u), 60);
+}
+voiceToggle.addEventListener('click', ()=>{
+  unlockTTS();
+  voiceReplies = !voiceReplies;
+  voiceToggle.classList.toggle('on', voiceReplies);
+  voiceToggle.textContent = voiceReplies ? '🔊' : '🔇';
+  if(!voiceReplies){
+    speechSynthesis.cancel();
+  }else{
+    // audible confirmation so the user knows the toggle works
+    speak(T().testPhrase, true);
+  }
+});
+if(!('speechSynthesis' in window)){
+  voiceToggle.style.opacity = .35;
+  voiceToggle.title = 'Speech not supported in this browser';
+}
+
+/* =========================================================
+   STT — recognition language follows app language
+   ========================================================= */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+if(SR){
+  recognition = new SR();
+  recognition.interimResults = true;
+  recognition.continuous = false;
+  recognition.onresult = (e)=>{
+    let final='', interim='';
+    for(const r of e.results){ (r.isFinal ? final += r[0].transcript : interim += r[0].transcript); }
+    const text = (final || interim).trim();
+    if(!voiceMode) return;
+    vmText = text;
+    vmCaption.classList.remove('dim');
+    vmCaption.textContent = text;
+  };
+  recognition.onend = ()=>{
+    if(!voiceMode || vmMuted) return;
+    if(vmText.trim()){
+      const t = vmText; vmText = '';
+      vmSend(t);
+    }else if(vmState === 'listening'){
+      // silence — keep listening
+      setTimeout(()=>{ if(voiceMode && !vmMuted && vmState==='listening') vmStartRec(); }, 350);
+    }
+  };
+  recognition.onerror = (e)=>{
+    if(voiceMode && (e.error === 'not-allowed' || e.error === 'service-not-allowed')){
+      vmStatus.textContent = T().vmUnsupported;
+    }
+  };
+}
+/* =========================================================
+   VOICE MODE — ChatGPT-style hands-free conversation
+   States: listening → thinking → speaking → listening …
+   ========================================================= */
+let voiceMode = false;
+let vmState = 'idle';      // listening | thinking | speaking | muted
+let vmText = '';
+let vmMuted = false;
+
+const voiceOverlay = document.getElementById('voiceOverlay');
+const vmStatus = document.getElementById('vmStatus');
+const vmCaption = document.getElementById('vmCaption');
+const vmMuteBtn = document.getElementById('vmMuteBtn');
+const vmCloseBtn = document.getElementById('vmCloseBtn');
+const orb = document.getElementById('orb');
+
+function setVM(state){
+  vmState = state;
+  voiceOverlay.classList.remove('listening','thinking','speaking','muted');
+  if(state !== 'idle') voiceOverlay.classList.add(state);
+  const labels = {listening:T().vmListening, thinking:T().vmThinking, speaking:T().vmSpeaking, muted:T().vmMuted};
+  vmStatus.textContent = labels[state] || '';
+}
+function vmStartRec(){
+  if(!voiceMode || vmMuted) return;
+  vmText = '';
+  recognition.lang = T().srLang;
+  try{ recognition.start(); }catch(e){ /* already running */ }
+  setVM('listening');
+}
+function enterVoiceMode(){
+  if(!recognition){
+    // diagnose WHY, so the user knows what to do
+    let reason;
+    if(window.self !== window.top){
+      reason = '⚠️ Voice is blocked because the app is running inside an embedded preview. Download this file and open it directly in Chrome or Safari — voice will work there.';
+    }else if(typeof InstallTrigger !== 'undefined' || /firefox/i.test(navigator.userAgent)){
+      reason = '⚠️ Firefox does not support voice input yet. Please open this file in Chrome, Edge, or Safari.';
+    }else{
+      reason = T().vmUnsupported;
+    }
+    addMsg('ai', reason);
+    return;
+  }
+  unlockTTS();
+  voiceMode = true;
+  vmMuted = false;
+  vmMuteBtn.classList.remove('on');
+  vmCaption.classList.add('dim');
+  vmCaption.textContent = T().vmHint;
+  voiceOverlay.classList.add('open');
+  speechSynthesis.cancel();
+  vmStartRec();
+}
+function exitVoiceMode(){
+  voiceMode = false;
+  voiceOverlay.classList.remove('open');
+  setVM('idle');
+  vmCaption.textContent = '';
+  speechSynthesis.cancel();
+  try{ recognition.abort ? recognition.abort() : recognition.stop(); }catch(e){}
+}
+async function vmSend(text){
+  setVM('thinking');
+  vmCaption.classList.remove('dim');
+  vmCaption.textContent = text;
+  addMsg('user', text);
+  checkCrisis(text);
+  history.push({role:'user', content:text});
+  try{
+    const reply = await askClaude();
+    if(!voiceMode) return;              // user closed while waiting
+    addMsg('ai', reply);
+    history.push({role:'assistant', content:reply});
+    setVM('speaking');
+    vmCaption.classList.add('dim');
+    vmCaption.textContent = reply.length > 220 ? reply.slice(0,220)+'…' : reply;
+    speak(reply, true, ()=>{ if(voiceMode) vmStartRec(); });
+  }catch(err){
+    console.error(err);
+    if(!voiceMode) return;
+    addMsg('ai', T().error);
+    setVM('speaking');
+    speak(T().error, true, ()=>{ if(voiceMode) vmStartRec(); });
+  }
+}
+/* tap orb while it speaks = interrupt and talk */
+orb.addEventListener('click', ()=>{
+  if(!voiceMode) return;
+  if(vmState === 'speaking'){
+    speechSynthesis.cancel();
+    vmStartRec();
+  }else if(vmMuted){
+    vmMuteBtn.click();
+  }
+});
+vmMuteBtn.addEventListener('click', ()=>{
+  vmMuted = !vmMuted;
+  vmMuteBtn.classList.toggle('on', vmMuted);
+  if(vmMuted){
+    try{ recognition.abort ? recognition.abort() : recognition.stop(); }catch(e){}
+    setVM('muted');
+  }else{
+    vmStartRec();
+  }
+});
+vmCloseBtn.addEventListener('click', exitVoiceMode);
+document.getElementById('voiceModeBtn').addEventListener('click', enterVoiceMode);
+
+/* =========================================================
+   UI helpers
+   ========================================================= */
+/* ---- smart scrolling ---- */
+const scrollDownBtn = document.getElementById('scrollDown');
+function nearBottom(){ return chat.scrollHeight - chat.scrollTop - chat.clientHeight < 120; }
+function scrollBottom(force){
+  if(force || nearBottom()){
+    requestAnimationFrame(()=> chat.scrollTo({top:chat.scrollHeight, behavior:'smooth'}));
+  }
+}
+function updateScrollBtn(){ scrollDownBtn.classList.toggle('show', !nearBottom()); }
+chat.addEventListener('scroll', updateScrollBtn, {passive:true});
+scrollDownBtn.addEventListener('click', ()=> scrollBottom(true));
+
+function addMsg(role, text){
+  const div = document.createElement('div');
+  div.className = 'msg ' + (role==='user'?'user':'ai');
+  div.textContent = text;
+  const stick = nearBottom() || role==='user';
+  chat.appendChild(div);
+  scrollBottom(stick);
+  updateScrollBtn();
+  return div;
+}
+function showTyping(){
+  const t=document.createElement('div');
+  t.className='typing'; t.id='typing';
+  t.innerHTML='<span></span><span></span><span></span>';
+  chat.appendChild(t); scrollBottom(true);
+}
+function hideTyping(){ document.getElementById('typing')?.remove(); }
+function autoGrow(){ input.style.height='auto'; input.style.height=Math.min(input.scrollHeight,110)+'px'; }
+input.addEventListener('input', autoGrow);
+
+/* =========================================================
+   CLAUDE API
+   ========================================================= */
+async function askClaude(){
+  const resp = await fetch('/api/chat',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      messages: history,
+      approach,
+      lang,
+      mood,
+      session: sessionNum
+    })
+  });
+  const data = await resp.json();
+  if(!resp.ok || data.error) throw new Error(data.message||data.error||'API error');
+  return data.reply;
+}
+async function send(){
+  const text = input.value.trim();
+  if(!text) return;
+  input.value=''; autoGrow();
+  speechSynthesis.cancel();
+  addMsg('user', text);
+  checkCrisis(text);
+  history.push({role:'user', content:text});
+  showTyping(); sendBtn.disabled=true;
+  try{
+    const reply = await askClaude();
+    hideTyping();
+    addMsg('ai', reply);
+    history.push({role:'assistant', content:reply});
+    speak(reply);
+  }catch(err){
+    hideTyping();
+    addMsg('ai', T().error);
+    console.error(err);
+  }finally{
+    sendBtn.disabled=false;
+  }
+}
+sendBtn.addEventListener('click', send);
+input.addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); send(); }});
+
+/* =========================================================
+   Approach chips
+   ========================================================= */
+document.getElementById('approachBar').addEventListener('click', e=>{
+  const btn = e.target.closest('.chip'); if(!btn) return;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  btn.classList.add('active');
+  approach = btn.dataset.approach;
+  const names={auto:'Adaptive',cbt:'CBT',dbt:'DBT',act:'ACT',mindfulness:'Mindfulness',compassion:'Self-Compassion',coaching:'Coaching'};
+  addMsg('ai', T().approachSwitch(names[approach]));
+});
+
+/* =========================================================
+   Sheets (library + settings)
+   ========================================================= */
+const backdrop = document.getElementById('backdrop');
+const libSheet = document.getElementById('libSheet');
+const setSheet = document.getElementById('setSheet');
+function openSheet(s){ s.classList.add('open'); backdrop.classList.add('open'); }
+function closeSheets(){ [libSheet,setSheet].forEach(s=>s.classList.remove('open')); backdrop.classList.remove('open'); }
+document.getElementById('libBtn').addEventListener('click', ()=>openSheet(libSheet));
+document.getElementById('settingsBtn').addEventListener('click', ()=>{ populateVoiceSelect(); openSheet(setSheet); });
+backdrop.addEventListener('click', closeSheets);
+
+const libList = document.getElementById('libList');
+KNOWLEDGE.frameworks.forEach(f=>{
+  const d=document.createElement('div');
+  d.className='lib-item';
+  d.innerHTML=`<h3>${f.name}</h3><p>${f.gist}</p><p style="margin-top:5px;color:var(--sage);font-size:12px">📖 ${f.source}</p>`;
+  d.addEventListener('click', ()=>{ closeSheets(); input.value = T().teach(f.name); send(); });
+  libList.appendChild(d);
+});
+
+/* =========================================================
+   Language switching
+   ========================================================= */
+function applyLanguageUI(){
+  const t = T();
+  document.documentElement.lang = lang;
+  document.getElementById('statusLine').innerHTML = `${t.tagline} · ${t.session} ${sessionNum}`;
+  input.placeholder = t.placeholder;
+  document.getElementById('disclaimer').textContent = t.disclaimer;
+  document.getElementById('libTitle').textContent = t.libTitle;
+  document.getElementById('libSub').textContent = t.libSub;
+  document.getElementById('setTitle').textContent = t.setTitle;
+  document.getElementById('setSub').textContent = t.setSub;
+  document.getElementById('langLabel').textContent = t.langLabel;
+  document.getElementById('genderLabel').textContent = t.genderLabel;
+  document.getElementById('voiceLabel').textContent = t.voiceLabel;
+  document.getElementById('gFemale').textContent = '♀ ' + t.female;
+  document.getElementById('gMale').textContent = '♂ ' + t.male;
+  document.getElementById('testVoice').textContent = t.testVoice;
+  document.getElementById('voiceNote').textContent = t.voiceNote;
+  langSelect.value = lang;
+  populateVoiceSelect();
+}
+langSelect.addEventListener('change', ()=>{
+  lang = langSelect.value;
+  store('mw_lang', lang);
+  chosenVoiceURI = null; store('mw_voice','');
+  applyLanguageUI();
+  closeSheets();
+  addMsg('ai', T().welcome.split('\n')[0]);  // greet briefly in new language
+  speak(T().welcome.split('\n')[0]);
+});
+// restore gender segment state
+document.querySelectorAll('#genderSeg button').forEach(b=>{
+  b.classList.toggle('active', b.dataset.g === genderPref);
+});
+
+/* =========================================================
+   Welcome flow
+   ========================================================= */
+function welcome(){
+  applyLanguageUI();
+  addMsg('ai', T().welcome);
+
+  const card=document.createElement('div');
+  card.className='mood-card';
+  const emojis=['😞','😕','😐','🙂','😄'];
+  card.innerHTML=`<p>${T().moodPrompt}</p><div class="moods">${
+    emojis.map((e,i)=>`<button data-i="${i}">${e}</button>`).join('')
+  }</div>`;
+  chat.appendChild(card);
+
+  card.querySelector('.moods').addEventListener('click', e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    const i=Number(b.dataset.i);
+    mood = T().moodLabels[i];
+    card.remove();
+    addMsg('user', `${T().moodMsg}: ${emojis[i]} (${mood})`);
+    history.push({role:'user', content:`(Mood check-in: ${mood})`});
+    quickPrompts();
+  });
+}
+function quickPrompts(){
+  const wrap=document.createElement('div');
+  wrap.className='quick';
+  T().quick.forEach(p=>{
+    const b=document.createElement('button');
+    b.textContent=p;
+    b.addEventListener('click', ()=>{ wrap.remove(); input.value=p; send(); });
+    wrap.appendChild(b);
+  });
+  chat.appendChild(wrap);
+  scrollBottom(true);
+  addMsg('ai', T().pickPrompt);
+}
+welcome();
+</script>
+</body>
+</html>
