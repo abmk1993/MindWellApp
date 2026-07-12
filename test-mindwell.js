@@ -1,7 +1,7 @@
 const fs = require('fs');
 const { JSDOM } = require('jsdom');
 
-const html = fs.readFileSync('/home/claude/mindwell/public/index.html', 'utf8');
+const html = fs.readFileSync(require('path').join(__dirname, 'public', 'index.html'), 'utf8');
 
 let pass = 0, fail = 0;
 function check(name, cond, detail=''){
@@ -40,8 +40,12 @@ function check(name, cond, detail=''){
       };
       // ---- stub localStorage quirks ----
       // jsdom has localStorage; fine.
-      // ---- stub fetch (Claude API) ----
+      // ---- stub fetch (Claude API + TTS relay) ----
       window.fetch = async (url, opts) => {
+        if(url === '/api/tts'){
+          // simulate ElevenLabs not configured — client should fall back to native voice
+          return { ok: false, status: 501, json: async () => ({ error: 'tts_not_configured' }) };
+        }
         window.__lastUrl = url;
         const body = JSON.parse(opts.body);
         window.__lastRequest = body;

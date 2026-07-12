@@ -33,7 +33,7 @@ async function post(path, body, port=3100){
   process.env.ANTHROPIC_API_KEY = 'sk-ant-test-key';
   process.env.ANTHROPIC_URL = 'http://localhost:3199/v1/messages';
   process.env.PORT = '3100';
-  require('/home/claude/mindwell/server.js');
+  require(require('path').join(__dirname, 'server.js'));
   await new Promise(r => setTimeout(r, 400));
 
   console.log('\n== 1. Static hosting ==');
@@ -44,6 +44,10 @@ async function post(path, body, port=3100){
   check('No API key anywhere in the page', !/sk-ant/.test(html));
   const health = await (await fetch('http://localhost:3100/api/health')).json();
   check('Health endpoint OK', health.ok === true);
+
+  console.log('\n== 1b. TTS relay (ElevenLabs) ==');
+  const tts1 = await post('/api/tts', { text: 'hello there' });
+  check('TTS returns 501 when ELEVENLABS_API_KEY is not set', tts1.status === 501 && tts1.data.error === 'tts_not_configured');
 
   console.log('\n== 2. Chat relay ==');
   const r1 = await post('/api/chat', {

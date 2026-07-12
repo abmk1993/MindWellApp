@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -649,32 +650,84 @@ document.getElementById('testVoice').addEventListener('click', ()=> speak(T().te
    Trick: on the FIRST user gesture, speak a silent utterance to "unlock"
    the synthesizer — after that, async replies can speak freely. */
 let ttsUnlocked = false;
+let silentAudio = null;
 function unlockTTS(){
-  if(ttsUnlocked || !('speechSynthesis' in window)) return;
+  if(ttsUnlocked) return;
   try{
-    const u = new SpeechSynthesisUtterance(' ');
-    u.volume = 0;
-    speechSynthesis.speak(u);
+    if('speechSynthesis' in window){
+      const u = new SpeechSynthesisUtterance(' ');
+      u.volume = 0;
+      speechSynthesis.speak(u);
+    }
+    // also prime an <audio> element so ElevenLabs playback isn't blocked
+    // by mobile autoplay policy when a reply arrives asynchronously later
+    silentAudio = new Audio();
+    silentAudio.play().catch(()=>{});
     ttsUnlocked = true;
   }catch(e){}
 }
 document.addEventListener('pointerdown', unlockTTS, {once:false});
 document.addEventListener('keydown', unlockTTS, {once:false});
 
-function speak(text, force, onDone){
-  if((!voiceReplies && !force) || !('speechSynthesis' in window)){ if(onDone) onDone(); return; }
+let currentAudio = null;
+function stopSpeaking(){
+  if('speechSynthesis' in window) speechSynthesis.cancel();
+  if(currentAudio){ try{ currentAudio.pause(); }catch(e){} currentAudio = null; }
+  avatar.classList.remove('speaking');
+}
+
+/* Realistic voice via ElevenLabs (server relay at /api/tts).
+   Once the server reports the feature isn't configured, stop asking. */
+let elevenUnavailable = false;
+async function fetchElevenAudioURL(text){
+  if(elevenUnavailable) return null;
+  try{
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ text, gender: genderPref })
+    });
+    if(!res.ok){
+      if(res.status === 501) elevenUnavailable = true;
+      return null;
+    }
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  }catch(e){ return null; }
+}
+
+function speakNative(clean, finish){
+  if(!('speechSynthesis' in window)){ finish(); return; }
   if(!allVoices.length) allVoices = speechSynthesis.getVoices();
-  speechSynthesis.cancel();
-  const clean = text.replace(/[*_#`>~]/g,'').replace(/\s+/g,' ').trim();
   const u = new SpeechSynthesisUtterance(clean);
   const v = currentVoice();
   if(v){ u.voice = v; u.lang = v.lang; } else { u.lang = T().srLang; }
   u.rate = 0.97; u.pitch = 1.0;
-  let done = false;
-  const finish = ()=>{ avatar.classList.remove('speaking'); if(!done){ done = true; if(onDone) onDone(); } };
   u.onstart = ()=> avatar.classList.add('speaking');
   u.onend = finish; u.onerror = finish;
   setTimeout(()=> speechSynthesis.speak(u), 60);
+}
+
+async function speak(text, force, onDone){
+  if(!voiceReplies && !force){ if(onDone) onDone(); return; }
+  stopSpeaking();
+  const clean = text.replace(/[*_#`>~]/g,'').replace(/\s+/g,' ').trim();
+  if(!clean){ if(onDone) onDone(); return; }
+  let done = false;
+  const finish = ()=>{ avatar.classList.remove('speaking'); if(!done){ done = true; if(onDone) onDone(); } };
+
+  const url = await fetchElevenAudioURL(clean);
+  if(url){
+    const audioEl = new Audio(url);
+    currentAudio = audioEl;
+    const cleanup = ()=>{ URL.revokeObjectURL(url); if(currentAudio===audioEl) currentAudio=null; finish(); };
+    audioEl.onplay = ()=> avatar.classList.add('speaking');
+    audioEl.onended = cleanup;
+    audioEl.onerror = cleanup;
+    audioEl.play().catch(()=>{ URL.revokeObjectURL(url); currentAudio=null; speakNative(clean, finish); });
+    return;
+  }
+  speakNative(clean, finish);
 }
 voiceToggle.addEventListener('click', ()=>{
   unlockTTS();
@@ -682,7 +735,7 @@ voiceToggle.addEventListener('click', ()=>{
   voiceToggle.classList.toggle('on', voiceReplies);
   voiceToggle.textContent = voiceReplies ? '🔊' : '🔇';
   if(!voiceReplies){
-    speechSynthesis.cancel();
+    stopSpeaking();
   }else{
     // audible confirmation so the user knows the toggle works
     speak(T().testPhrase, true);
@@ -778,7 +831,7 @@ function enterVoiceMode(){
   vmCaption.classList.add('dim');
   vmCaption.textContent = T().vmHint;
   voiceOverlay.classList.add('open');
-  speechSynthesis.cancel();
+  stopSpeaking();
   vmStartRec();
 }
 function exitVoiceMode(){
@@ -786,7 +839,7 @@ function exitVoiceMode(){
   voiceOverlay.classList.remove('open');
   setVM('idle');
   vmCaption.textContent = '';
-  speechSynthesis.cancel();
+  stopSpeaking();
   try{ recognition.abort ? recognition.abort() : recognition.stop(); }catch(e){}
 }
 async function vmSend(text){
@@ -817,7 +870,7 @@ async function vmSend(text){
 orb.addEventListener('click', ()=>{
   if(!voiceMode) return;
   if(vmState === 'speaking'){
-    speechSynthesis.cancel();
+    stopSpeaking();
     vmStartRec();
   }else if(vmMuted){
     vmMuteBtn.click();
@@ -894,7 +947,7 @@ async function send(){
   const text = input.value.trim();
   if(!text) return;
   input.value=''; autoGrow();
-  speechSynthesis.cancel();
+  stopSpeaking();
   addMsg('user', text);
   checkCrisis(text);
   history.push({role:'user', content:text});

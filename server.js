@@ -21,6 +21,15 @@ if (!API_KEY) {
   process.exit(1);
 }
 
+/* ---------- ElevenLabs TTS (optional — app falls back to the browser's
+   built-in voice if this key isn't set) ---------- */
+const ELEVEN_KEY = process.env.ELEVENLABS_API_KEY || '';
+const ELEVEN_MODEL = process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2';
+const ELEVEN_VOICES = {
+  female: process.env.ELEVENLABS_VOICE_FEMALE || 'EXAVITQu4vr4xnSDxMaL', // "Sarah" — mature, reassuring
+  male: process.env.ELEVENLABS_VOICE_MALE || 'nPczCjzI2devNBz1zQrb'      // "Brian" — deep, comforting
+};
+
 app.use(express.json({ limit: '200kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -150,6 +159,45 @@ app.post('/api/chat', rateLimit, async (req, res) => {
   } catch (e) {
     console.error('Relay failure:', e.message);
     res.status(502).json({ error: 'relay_failed', message: 'Could not reach the AI service.' });
+  }
+});
+
+/* ---------- the TTS relay — keeps the ElevenLabs key server-side ---------- */
+app.post('/api/tts', rateLimit, async (req, res) => {
+  if (!ELEVEN_KEY) return res.status(501).json({ error: 'tts_not_configured' });
+
+  const { text, gender } = req.body || {};
+  if (typeof text !== 'string' || !text.trim()) return res.status(400).json({ error: 'bad_text' });
+  if (text.length > 1500) return res.status(400).json({ error: 'text_too_long' });
+
+  const voiceId = ELEVEN_VOICES[gender] || ELEVEN_VOICES.female;
+
+  try {
+    const upstream = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'audio/mpeg',
+        'xi-api-key': ELEVEN_KEY
+      },
+      body: JSON.stringify({
+        text: text.trim(),
+        model_id: ELEVEN_MODEL,
+        voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+      })
+    });
+
+    if (!upstream.ok) {
+      console.error('ElevenLabs error:', upstream.status, await upstream.text().catch(() => ''));
+      return res.status(502).json({ error: 'tts_upstream' });
+    }
+
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    res.set('Content-Type', 'audio/mpeg');
+    res.send(buf);
+  } catch (e) {
+    console.error('TTS relay failure:', e.message);
+    res.status(502).json({ error: 'tts_relay_failed' });
   }
 });
 
