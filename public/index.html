@@ -696,15 +696,18 @@ async function fetchElevenAudioURL(text){
   }catch(e){ return null; }
 }
 
+let currentUtterance = null; // Safari can silently GC an utterance mid-speech if nothing keeps it alive
 function speakNative(clean, finish){
   if(!('speechSynthesis' in window)){ finish(); return; }
   if(!allVoices.length) allVoices = speechSynthesis.getVoices();
   const u = new SpeechSynthesisUtterance(clean);
+  currentUtterance = u;
   const v = currentVoice();
   if(v){ u.voice = v; u.lang = v.lang; } else { u.lang = T().srLang; }
   u.rate = 0.97; u.pitch = 1.0;
   u.onstart = ()=> avatar.classList.add('speaking');
-  u.onend = finish; u.onerror = finish;
+  u.onend = ()=>{ if(currentUtterance===u) currentUtterance=null; finish(); };
+  u.onerror = ()=>{ if(currentUtterance===u) currentUtterance=null; finish(); };
   setTimeout(()=> speechSynthesis.speak(u), 60);
 }
 
