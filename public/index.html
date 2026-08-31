@@ -7,16 +7,17 @@
 <title>MindWell — Voice Coach</title>
 <style>
   :root{
-    --bg:#101816;
-    --bg-soft:#182420;
-    --surface:#1f2e29;
-    --surface-2:#26372f;
-    --ink:#e9f0ec;
-    --ink-dim:#9db4aa;
-    --sage:#8fc7a8;
-    --sage-deep:#57a37f;
-    --sand:#e8c98f;
-    --danger:#e08b8b;
+    --bg:#140f1f;
+    --bg-soft:#1c1530;
+    --surface:#261c40;
+    --surface-2:#31244f;
+    --ink:#f4eefc;
+    --ink-dim:#b3a2ce;
+    --sage:#4fd9c4;
+    --sage-deep:#22a68f;
+    --sand:#ff9f6b;
+    --danger:#ff6b81;
+    --on-accent:#1a1030;
     --radius:18px;
     --font-display:'Georgia','Times New Roman',serif;
     --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
@@ -31,54 +32,57 @@
 
   header{
     padding:14px 18px 10px;display:flex;align-items:center;justify-content:space-between;
-    border-bottom:1px solid rgba(143,199,168,.12);
+    border-bottom:1px solid rgba(79,217,196,.12);
     background:linear-gradient(180deg,var(--bg-soft),var(--bg));flex-shrink:0;
   }
-  .brand{display:flex;align-items:center;gap:10px}
+  .brand{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
+  .brand>div{min-width:0}
   .avatar{
     width:40px;height:40px;border-radius:50%;
     background:radial-gradient(circle at 32% 30%,var(--sage),var(--sage-deep));
     display:flex;align-items:center;justify-content:center;
-    font-family:var(--font-display);font-size:19px;color:#0e1a15;position:relative;
+    font-family:var(--font-display);font-size:19px;color:var(--on-accent);position:relative;
   }
   .avatar.speaking{animation:breathe 1.4s ease-in-out infinite}
   @keyframes breathe{
-    0%,100%{box-shadow:0 0 0 0 rgba(143,199,168,.45)}
-    50%{box-shadow:0 0 0 12px rgba(143,199,168,0)}
+    0%,100%{box-shadow:0 0 0 0 rgba(79,217,196,.45)}
+    50%{box-shadow:0 0 0 12px rgba(79,217,196,0)}
   }
-  .brand h1{font-family:var(--font-display);font-size:19px;font-weight:400;letter-spacing:.3px}
-  .brand small{display:block;font-size:11px;color:var(--ink-dim)}
+  .brand h1{font-family:var(--font-display);font-size:19px;font-weight:400;letter-spacing:.3px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brand small{display:block;font-size:11px;color:var(--ink-dim);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .header-btns{display:flex;gap:8px}
   .icon-btn{
-    width:38px;height:38px;border-radius:12px;border:1px solid rgba(143,199,168,.2);
+    width:38px;height:38px;border-radius:12px;border:1px solid rgba(79,217,196,.2);
     background:transparent;color:var(--sage);font-size:17px;cursor:pointer;
     display:flex;align-items:center;justify-content:center;transition:background .2s;
   }
   .icon-btn:active{background:var(--surface)}
-  .icon-btn.on{background:var(--sage);color:#0e1a15;border-color:var(--sage)}
+  .icon-btn.on{background:var(--sage);color:var(--on-accent);border-color:var(--sage)}
 
   .approaches{display:flex;gap:8px;overflow-x:auto;padding:10px 18px;scrollbar-width:none;flex-shrink:0}
   .approaches::-webkit-scrollbar{display:none}
   .chip{
     flex-shrink:0;padding:7px 14px;border-radius:999px;font-size:13px;
-    border:1px solid rgba(143,199,168,.25);background:transparent;color:var(--ink-dim);
+    border:1px solid rgba(79,217,196,.25);background:transparent;color:var(--ink-dim);
     cursor:pointer;transition:all .2s;white-space:nowrap;
   }
-  .chip.active{background:var(--sage);color:#0e1a15;border-color:var(--sage);font-weight:600}
+  .chip.active{background:var(--sage);color:var(--on-accent);border-color:var(--sage);font-weight:600}
 
   #chat{flex:1;overflow-y:auto;padding:16px 18px 8px;display:flex;flex-direction:column;gap:12px;
-    overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(143,199,168,.35) transparent}
+    overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(79,217,196,.35) transparent}
   #chat::-webkit-scrollbar{width:5px}
   #chat::-webkit-scrollbar-track{background:transparent}
-  #chat::-webkit-scrollbar-thumb{background:rgba(143,199,168,.3);border-radius:3px}
-  #chat::-webkit-scrollbar-thumb:hover{background:rgba(143,199,168,.55)}
-  .sheet{scrollbar-width:thin;scrollbar-color:rgba(143,199,168,.35) transparent}
+  #chat::-webkit-scrollbar-thumb{background:rgba(79,217,196,.3);border-radius:3px}
+  #chat::-webkit-scrollbar-thumb:hover{background:rgba(79,217,196,.55)}
+  .sheet{scrollbar-width:thin;scrollbar-color:rgba(79,217,196,.35) transparent}
   .sheet::-webkit-scrollbar{width:5px}
-  .sheet::-webkit-scrollbar-thumb{background:rgba(143,199,168,.3);border-radius:3px}
+  .sheet::-webkit-scrollbar-thumb{background:rgba(79,217,196,.3);border-radius:3px}
 
   .scroll-down{
     position:absolute;right:16px;bottom:96px;z-index:6;
-    width:40px;height:40px;border-radius:50%;border:1px solid rgba(143,199,168,.35);
+    width:40px;height:40px;border-radius:50%;border:1px solid rgba(79,217,196,.35);
     background:var(--surface-2);color:var(--sage);font-size:17px;cursor:pointer;
     display:flex;align-items:center;justify-content:center;
     box-shadow:0 4px 14px rgba(0,0,0,.35);
@@ -88,9 +92,9 @@
   .scroll-down.show{opacity:1;pointer-events:auto;transform:none}
   .chat-wrap{position:relative;flex:1;display:flex;flex-direction:column;min-height:0}
   .msg{max-width:86%;padding:12px 15px;border-radius:var(--radius);font-size:15px;line-height:1.55;
-    animation:pop .25s ease;white-space:pre-wrap}
+    animation:pop .25s ease;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}
   @keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-  .msg.user{align-self:flex-end;background:var(--sage-deep);color:#0d1712;border-bottom-right-radius:6px}
+  .msg.user{align-self:flex-end;background:var(--sage-deep);color:var(--on-accent);border-bottom-right-radius:6px}
   .msg.ai{align-self:flex-start;background:var(--surface);border-bottom-left-radius:6px}
   .typing{align-self:flex-start;background:var(--surface);border-radius:var(--radius);padding:14px 18px;display:flex;gap:5px}
   .typing span{width:7px;height:7px;border-radius:50%;background:var(--sage);opacity:.4;animation:blink 1.2s infinite}
@@ -106,12 +110,12 @@
 
   .quick{display:flex;gap:8px;flex-wrap:wrap;padding:0 2px}
   .quick button{font-size:12.5px;padding:8px 12px;border-radius:999px;cursor:pointer;
-    background:transparent;border:1px dashed rgba(232,201,143,.4);color:var(--sand);text-align:left}
+    background:transparent;border:1px dashed rgba(255,159,107,.4);color:var(--sand);text-align:left}
 
   /* crisis support card */
   .crisis-card{
-    background:linear-gradient(135deg,#3a2430,#2c1e28);
-    border:1px solid rgba(224,139,139,.45);
+    background:linear-gradient(135deg,#3d1f38,#2a1730);
+    border:1px solid rgba(255,107,129,.45);
     border-radius:var(--radius);padding:16px;align-self:stretch;
   }
   .crisis-card h3{font-size:15px;color:var(--danger);margin-bottom:6px}
@@ -119,11 +123,11 @@
 
   .composer{
     flex-shrink:0;padding:10px 14px calc(12px + env(safe-area-inset-bottom));
-    background:var(--bg-soft);border-top:1px solid rgba(143,199,168,.12);
+    background:var(--bg-soft);border-top:1px solid rgba(79,217,196,.12);
     display:flex;gap:8px;align-items:flex-end;position:relative;
   }
   #input{
-    flex:1;background:var(--surface);border:1px solid rgba(143,199,168,.18);
+    flex:1;background:var(--surface);border:1px solid rgba(79,217,196,.18);
     border-radius:22px;padding:12px 16px;color:var(--ink);font-size:15px;
     resize:none;max-height:110px;outline:none;font-family:var(--font-body);
   }
@@ -133,7 +137,7 @@
     display:flex;align-items:center;justify-content:center;transition:transform .15s,background .2s;
   }
   .round-btn:active{transform:scale(.92)}
-  #sendBtn{background:var(--sage);color:#0e1a15}
+  #sendBtn{background:var(--sage);color:var(--on-accent)}
   #sendBtn:disabled{opacity:.35}
 
   .sheet-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:20;opacity:0;pointer-events:none;transition:opacity .25s}
@@ -146,7 +150,7 @@
   .sheet.open{transform:translate(-50%,0)}
   .sheet h2{font-family:var(--font-display);font-weight:400;font-size:20px;margin-bottom:4px}
   .sheet .sub{font-size:13px;color:var(--ink-dim);margin-bottom:16px}
-  .grabber{width:42px;height:4px;border-radius:2px;background:rgba(143,199,168,.3);margin:0 auto 14px}
+  .grabber{width:42px;height:4px;border-radius:2px;background:rgba(79,217,196,.3);margin:0 auto 14px}
   .lib-item{background:var(--surface);border-radius:14px;padding:13px 15px;margin-bottom:10px;cursor:pointer}
   .lib-item h3{font-size:14.5px;color:var(--sand);font-weight:600;margin-bottom:3px}
   .lib-item p{font-size:13px;color:var(--ink-dim);line-height:1.45}
@@ -155,18 +159,20 @@
   .set-group{margin-bottom:20px}
   .set-group label{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-dim);margin-bottom:8px}
   select{
-    width:100%;background:var(--surface);color:var(--ink);border:1px solid rgba(143,199,168,.25);
-    border-radius:12px;padding:12px 14px;font-size:15px;outline:none;appearance:none;
+    width:100%;background:var(--surface);color:var(--ink);border:1px solid rgba(79,217,196,.25);
+    border-radius:12px;padding:12px 36px 12px 14px;font-size:15px;outline:none;appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23b3a2ce' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='5 8 10 13 15 8'/></svg>");
+    background-repeat:no-repeat;background-position:right 12px center;background-size:16px;
   }
   .seg{display:flex;background:var(--surface);border-radius:12px;padding:4px;gap:4px}
   .seg button{
     flex:1;padding:10px 4px;border:none;border-radius:9px;background:transparent;color:var(--ink-dim);
     font-size:14px;cursor:pointer;transition:all .2s;
   }
-  .seg button.active{background:var(--sage);color:#0e1a15;font-weight:600}
+  .seg button.active{background:var(--sage);color:var(--on-accent);font-weight:600}
   .voice-note{font-size:12px;color:var(--ink-dim);margin-top:8px;line-height:1.5}
   .test-voice{
-    margin-top:10px;width:100%;padding:12px;border-radius:12px;border:1px dashed rgba(143,199,168,.35);
+    margin-top:10px;width:100%;padding:12px;border-radius:12px;border:1px dashed rgba(79,217,196,.35);
     background:transparent;color:var(--sage);font-size:14px;cursor:pointer;
   }
 
@@ -175,7 +181,7 @@
   /* ---------- ChatGPT-style voice mode ---------- */
   .voice-overlay{
     position:fixed;inset:0;z-index:40;
-    background:radial-gradient(120% 100% at 50% 0%, #16251f 0%, #0b1210 70%);
+    background:radial-gradient(120% 100% at 50% 0%, #241a3f 0%, #0f0a1c 70%);
     display:flex;flex-direction:column;align-items:center;justify-content:space-between;
     padding:60px 24px calc(40px + env(safe-area-inset-bottom));
     opacity:0;pointer-events:none;transition:opacity .3s;
@@ -188,15 +194,15 @@
   .orb-zone{display:flex;flex-direction:column;align-items:center;gap:28px;flex:1;justify-content:center}
   .orb{
     width:170px;height:170px;border-radius:50%;position:relative;cursor:pointer;
-    background:radial-gradient(circle at 35% 30%, #b8e6cd, var(--sage) 45%, var(--sage-deep) 100%);
-    box-shadow:0 0 60px rgba(143,199,168,.25);
+    background:radial-gradient(circle at 35% 30%, #c3fbef, var(--sage) 45%, var(--sage-deep) 100%);
+    box-shadow:0 0 60px rgba(79,217,196,.25);
     transition:transform .3s;
   }
   .orb::before,.orb::after{
     content:'';position:absolute;inset:-14px;border-radius:50%;
-    border:2px solid rgba(143,199,168,.28);opacity:0;
+    border:2px solid rgba(79,217,196,.28);opacity:0;
   }
-  .orb::after{inset:-30px;border-color:rgba(143,199,168,.15)}
+  .orb::after{inset:-30px;border-color:rgba(79,217,196,.15)}
 
   /* listening: expanding rings */
   .voice-overlay.listening .orb::before{animation:ring 1.8s ease-out infinite}
@@ -230,11 +236,11 @@
   }
   .vm-btn:active{transform:scale(.92)}
   .vm-mute{background:var(--surface-2);color:var(--ink)}
-  .vm-mute.on{background:var(--danger);color:#1a0d0d}
-  .vm-close{background:#3a2a2a;color:#f0b9b9}
+  .vm-mute.on{background:var(--danger);color:var(--on-accent)}
+  .vm-close{background:#3a1f2c;color:#ffb4c4}
 
   /* waveform icon in composer */
-  #voiceModeBtn{background:var(--sand);color:#1a140a}
+  #voiceModeBtn{background:var(--sand);color:var(--on-accent)}
   #voiceModeBtn svg{width:22px;height:22px}
   @media (prefers-reduced-motion: reduce){
     .orb,.orb::before,.orb::after{animation:none !important}
@@ -352,7 +358,7 @@
 const I18N = {
   en:{
     name:'English', srLang:'en-US', tagline:'Evidence-based support',
-    placeholder:"Say or type what's on your mind…", listening:'🎙 Listening… speak now',
+    placeholder:"What's on your mind?", listening:'🎙 Listening… speak now',
     disclaimer:'MindWell is a supportive companion, not a replacement for licensed care. In crisis, contact local emergency services.',
     welcome:"Hi, I'm MindWell. I draw on the most effective modern approaches — CBT, DBT, ACT, mindfulness and more — and we can talk by voice: tap the mic to speak, and I'll answer out loud.\n\nBefore we start, how are you feeling right now?",
     moodPrompt:'Tap the emoji closest to your mood',
@@ -375,7 +381,7 @@ const I18N = {
   },
   hy:{
     name:'Հայերեն', srLang:'hy-AM', tagline:'Գիտականորեն հիմնավորված աջակցություն',
-    placeholder:'Ասա կամ գրիր, ինչ կա մտքիդ…', listening:'🎙 Լսում եմ… խոսիր',
+    placeholder:'Ի՞նչ կա մտքիդ', listening:'🎙 Լսում եմ… խոսիր',
     disclaimer:'MindWell-ը աջակցող ուղեկից է, ոչ թե լիցենզավորված բուժման փոխարինող։ Ճգնաժամի դեպքում դիմեք շտապ օգնություն (112)։',
     welcome:'Բարև, ես MindWell-ն եմ։ Ես հիմնվում եմ ամենաարդյունավետ ժամանակակից մոտեցումների վրա՝ CBT, DBT, ACT, մայնդֆուլնես և այլն, և կարող ենք խոսել ձայնով՝ սեղմիր խոսափողը, և ես կպատասխանեմ ձայնով։\n\nՆախքան սկսելը՝ ինչպե՞ս ես քեզ զգում հիմա։',
     moodPrompt:'Ընտրիր տրամադրությանդ ամենամոտ էմոջին',
@@ -398,7 +404,7 @@ const I18N = {
   },
   ru:{
     name:'Русский', srLang:'ru-RU', tagline:'Научно обоснованная поддержка',
-    placeholder:'Скажи или напиши, что у тебя на душе…', listening:'🎙 Слушаю… говори',
+    placeholder:'Что у тебя на душе?', listening:'🎙 Слушаю… говори',
     disclaimer:'MindWell — поддерживающий помощник, а не замена лицензированной помощи. В кризисной ситуации звоните в экстренные службы (112).',
     welcome:'Привет, я MindWell. Я опираюсь на самые эффективные современные подходы — КПТ, ДБТ, ACT, майндфулнес и другие — и мы можем говорить голосом: нажми на микрофон, и я отвечу вслух.\n\nПрежде чем начнём — как ты себя сейчас чувствуешь?',
     moodPrompt:'Выбери эмодзи, ближе всего к твоему настроению',
@@ -421,7 +427,7 @@ const I18N = {
   },
   es:{
     name:'Español', srLang:'es-ES', tagline:'Apoyo basado en evidencia',
-    placeholder:'Di o escribe lo que tienes en mente…', listening:'🎙 Escuchando… habla',
+    placeholder:'¿Qué tienes en mente?', listening:'🎙 Escuchando… habla',
     disclaimer:'MindWell es un acompañante de apoyo, no un sustituto de atención profesional. En crisis, contacta los servicios de emergencia (112).',
     welcome:'Hola, soy MindWell. Me baso en los enfoques modernos más eficaces — TCC, DBT, ACT, mindfulness y más — y podemos hablar por voz: toca el micrófono y te responderé en voz alta.\n\nAntes de empezar, ¿cómo te sientes ahora?',
     moodPrompt:'Toca el emoji más cercano a tu estado de ánimo',
@@ -444,7 +450,7 @@ const I18N = {
   },
   fr:{
     name:'Français', srLang:'fr-FR', tagline:'Soutien fondé sur des preuves',
-    placeholder:'Dis ou écris ce que tu as en tête…', listening:'🎙 J\'écoute… parle',
+    placeholder:'Qu\'as-tu en tête ?', listening:'🎙 J\'écoute… parle',
     disclaimer:'MindWell est un compagnon de soutien, pas un substitut à des soins professionnels. En cas de crise, contactez les urgences (112).',
     welcome:'Bonjour, je suis MindWell. Je m\'appuie sur les approches modernes les plus efficaces — TCC, DBT, ACT, pleine conscience et plus — et nous pouvons parler par la voix : touche le micro et je répondrai à voix haute.\n\nAvant de commencer, comment te sens-tu maintenant ?',
     moodPrompt:'Touche l\'emoji le plus proche de ton humeur',
@@ -467,7 +473,7 @@ const I18N = {
   },
   de:{
     name:'Deutsch', srLang:'de-DE', tagline:'Evidenzbasierte Unterstützung',
-    placeholder:'Sag oder schreib, was dich beschäftigt…', listening:'🎙 Ich höre zu… sprich',
+    placeholder:'Was beschäftigt dich?', listening:'🎙 Ich höre zu… sprich',
     disclaimer:'MindWell ist ein unterstützender Begleiter, kein Ersatz für professionelle Behandlung. In Krisen: Notruf 112.',
     welcome:'Hallo, ich bin MindWell. Ich stütze mich auf die wirksamsten modernen Ansätze — KVT, DBT, ACT, Achtsamkeit und mehr — und wir können per Stimme sprechen: Tippe aufs Mikrofon und ich antworte laut.\n\nBevor wir anfangen: Wie fühlst du dich gerade?',
     moodPrompt:'Tippe auf das Emoji, das deiner Stimmung am nächsten kommt',
