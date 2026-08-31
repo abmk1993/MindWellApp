@@ -718,7 +718,12 @@ async function speak(text, force, onDone){
 
   const url = await fetchElevenAudioURL(clean);
   if(url){
-    const audioEl = new Audio(url);
+    // Reuse the SAME <audio> element unlocked in unlockTTS() during the user's
+    // tap. iOS Safari grants autoplay permission per-element, not per-page —
+    // a brand-new Audio(url) created here (after the async fetch above) would
+    // never have been touched by a user gesture and iOS silently blocks it.
+    const audioEl = silentAudio || new Audio();
+    audioEl.src = url;
     currentAudio = audioEl;
     const cleanup = ()=>{ URL.revokeObjectURL(url); if(currentAudio===audioEl) currentAudio=null; finish(); };
     audioEl.onplay = ()=> avatar.classList.add('speaking');
