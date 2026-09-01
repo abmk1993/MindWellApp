@@ -761,38 +761,64 @@ if(!('speechSynthesis' in window)){
 }
 
 /* =========================================================
-   STT — recognition language follows app language
+   STT — recognition language follows app language.
+   A brand-new SpeechRecognition instance is created for every
+   listening turn instead of reusing one shared object: with a
+   single shared instance, a late onresult/onend event from a
+   turn that hadn't fully torn down could overwrite the next
+   turn's transcript and get resent — the "answers my previous
+   question again" bug. recSeq guards against exactly that: any
+   event from an instance that's been superseded is ignored.
    ========================================================= */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
-if(SR){
-  recognition = new SR();
-  recognition.interimResults = true;
-  recognition.continuous = false;
-  recognition.onresult = (e)=>{
+let recSeq = 0;
+let vmListening = false;
+
+function createRecognition(){
+  const rec = new SR();
+  rec.interimResults = true;
+  rec.continuous = false;
+  const mySeq = ++recSeq;
+  let text = '';
+  rec.onresult = (e)=>{
+    if(mySeq !== recSeq || !voiceMode) return;
     let final='', interim='';
     for(const r of e.results){ (r.isFinal ? final += r[0].transcript : interim += r[0].transcript); }
-    const text = (final || interim).trim();
-    if(!voiceMode) return;
+    text = (final || interim).trim();
     vmText = text;
-    vmCaption.classList.remove('dim');
-    vmCaption.textContent = text;
-  };
-  recognition.onend = ()=>{
-    if(!voiceMode || vmMuted) return;
-    if(vmText.trim()){
-      const t = vmText; vmText = '';
-      vmSend(t);
-    }else if(vmState === 'listening'){
-      // silence — keep listening
-      setTimeout(()=>{ if(voiceMode && !vmMuted && vmState==='listening') vmStartRec(); }, 350);
+    // Barge-in: the user started talking while the AI was still speaking —
+    // stop it immediately instead of waiting for playback to finish.
+    if(vmState === 'speaking' && text.length >= 3){
+      stopSpeaking();
+      setVM('listening');
+    }
+    if(vmState === 'listening'){
+      vmCaption.classList.remove('dim');
+      vmCaption.textContent = text;
     }
   };
-  recognition.onerror = (e)=>{
+  rec.onend = ()=>{
+    vmListening = false;
+    if(mySeq !== recSeq || !voiceMode || vmMuted) return;
+    if(text.trim()){
+      vmSend(text);
+    }else if(vmState === 'listening' || vmState === 'speaking'){
+      const wasSpeaking = vmState === 'speaking';
+      // restart quickly while still speaking so background barge-in
+      // listening stays live for the whole reply, longer pause during
+      // genuine silence-retry so we don't hammer the recognizer
+      setTimeout(()=>{ if(voiceMode && !vmMuted && mySeq===recSeq && (vmState==='listening' || vmState==='speaking')) vmStartRec(vmState==='speaking'); }, wasSpeaking ? 50 : 350);
+    }
+  };
+  rec.onerror = (e)=>{
+    vmListening = false;
+    if(mySeq !== recSeq) return;
     if(voiceMode && (e.error === 'not-allowed' || e.error === 'service-not-allowed')){
       vmStatus.textContent = T().vmUnsupported;
     }
   };
+  return rec;
 }
 /* =========================================================
    VOICE MODE — ChatGPT-style hands-free conversation
@@ -817,15 +843,29 @@ function setVM(state){
   const labels = {listening:T().vmListening, thinking:T().vmThinking, speaking:T().vmSpeaking, muted:T().vmMuted};
   vmStatus.textContent = labels[state] || '';
 }
-function vmStartRec(){
-  if(!voiceMode || vmMuted) return;
+/* background=true keeps the current visual/logical state (used to listen
+   for barge-in while the AI is still talking) instead of switching to
+   'listening' outright. */
+function vmStartRec(background){
+  if(!SR || !voiceMode || vmMuted) return;
   vmText = '';
+  if(recognition){
+    recognition.onresult = null; recognition.onend = null; recognition.onerror = null;
+    try{ recognition.abort(); }catch(e){}
+  }
+  recognition = createRecognition();
   recognition.lang = T().srLang;
-  try{ recognition.start(); }catch(e){ /* already running */ }
-  setVM('listening');
+  try{ recognition.start(); vmListening = true; }catch(e){ vmListening = false; }
+  if(!background) setVM('listening');
+}
+/* called when TTS playback finishes on its own (no barge-in) */
+function afterSpeak(){
+  if(!voiceMode) return;
+  if(vmState !== 'listening') setVM('listening');
+  if(!vmListening) vmStartRec();
 }
 function enterVoiceMode(){
-  if(!recognition){
+  if(!SR){
     // diagnose WHY, so the user knows what to do
     let reason;
     if(window.self !== window.top){
@@ -854,7 +894,9 @@ function exitVoiceMode(){
   setVM('idle');
   vmCaption.textContent = '';
   stopSpeaking();
-  try{ recognition.abort ? recognition.abort() : recognition.stop(); }catch(e){}
+  recSeq++; // invalidate any in-flight recognition events
+  if(recognition){ try{ recognition.abort ? recognition.abort() : recognition.stop(); }catch(e){} }
+  vmListening = false;
 }
 async function vmSend(text){
   setVM('thinking');
@@ -871,13 +913,15 @@ async function vmSend(text){
     setVM('speaking');
     vmCaption.classList.add('dim');
     vmCaption.textContent = reply.length > 220 ? reply.slice(0,220)+'…' : reply;
-    speak(reply, true, ()=>{ if(voiceMode) vmStartRec(); });
+    vmStartRec(true); // listen in the background so the user can interrupt
+    speak(reply, true, afterSpeak);
   }catch(err){
     console.error(err);
     if(!voiceMode) return;
     addMsg('ai', T().error);
     setVM('speaking');
-    speak(T().error, true, ()=>{ if(voiceMode) vmStartRec(); });
+    vmStartRec(true);
+    speak(T().error, true, afterSpeak);
   }
 }
 /* tap orb while it speaks = interrupt and talk */
@@ -894,7 +938,10 @@ vmMuteBtn.addEventListener('click', ()=>{
   vmMuted = !vmMuted;
   vmMuteBtn.classList.toggle('on', vmMuted);
   if(vmMuted){
-    try{ recognition.abort ? recognition.abort() : recognition.stop(); }catch(e){}
+    stopSpeaking();
+    recSeq++;
+    if(recognition){ try{ recognition.abort ? recognition.abort() : recognition.stop(); }catch(e){} }
+    vmListening = false;
     setVM('muted');
   }else{
     vmStartRec();
