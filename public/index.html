@@ -775,28 +775,39 @@ let recognition = null;
 let recSeq = 0;
 let vmListening = false;
 
+function normalizeForEcho(s){
+  return s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu,'').replace(/\s+/g,' ').trim();
+}
 function createRecognition(){
   const rec = new SR();
   rec.interimResults = true;
   rec.continuous = false;
   const mySeq = ++recSeq;
   let text = '';
+  let bargedIn = false; // true once real (non-echo) speech has promoted us out of 'speaking'
   rec.onresult = (e)=>{
     if(mySeq !== recSeq || !voiceMode) return;
     let final='', interim='';
     for(const r of e.results){ (r.isFinal ? final += r[0].transcript : interim += r[0].transcript); }
-    text = (final || interim).trim();
-    vmText = text;
-    // Barge-in: the user started talking while the AI was still speaking —
-    // stop it immediately instead of waiting for playback to finish.
-    if(vmState === 'speaking' && text.length >= 3){
+    const heard = (final || interim).trim();
+    if(vmState === 'speaking' && !bargedIn){
+      // Without headphones the mic often picks up the AI's own voice from the
+      // speaker. If what we "heard" is basically a chunk of the reply that's
+      // currently playing, treat it as echo, not a real interruption.
+      const norm = normalizeForEcho(heard);
+      const isEcho = norm.length < 3 || (vmSpeakingText && vmSpeakingText.includes(norm));
+      if(isEcho) return;
+      // Real barge-in: the user started talking over the AI — stop it
+      // immediately instead of waiting for playback to finish.
+      bargedIn = true;
       stopSpeaking();
       setVM('listening');
     }
-    if(vmState === 'listening'){
-      vmCaption.classList.remove('dim');
-      vmCaption.textContent = text;
-    }
+    if(vmState !== 'listening') return; // still speaking (echo) — don't record it as the answer
+    text = heard;
+    vmText = text;
+    vmCaption.classList.remove('dim');
+    vmCaption.textContent = text;
   };
   rec.onend = ()=>{
     vmListening = false;
@@ -828,6 +839,7 @@ let voiceMode = false;
 let vmState = 'idle';      // listening | thinking | speaking | muted
 let vmText = '';
 let vmMuted = false;
+let vmSpeakingText = '';   // normalized text of the reply currently playing, for echo filtering
 
 const voiceOverlay = document.getElementById('voiceOverlay');
 const vmStatus = document.getElementById('vmStatus');
@@ -860,6 +872,7 @@ function vmStartRec(background){
 }
 /* called when TTS playback finishes on its own (no barge-in) */
 function afterSpeak(){
+  vmSpeakingText = '';
   if(!voiceMode) return;
   if(vmState !== 'listening') setVM('listening');
   if(!vmListening) vmStartRec();
@@ -913,6 +926,7 @@ async function vmSend(text){
     setVM('speaking');
     vmCaption.classList.add('dim');
     vmCaption.textContent = reply.length > 220 ? reply.slice(0,220)+'…' : reply;
+    vmSpeakingText = normalizeForEcho(reply);
     vmStartRec(true); // listen in the background so the user can interrupt
     speak(reply, true, afterSpeak);
   }catch(err){
@@ -920,6 +934,7 @@ async function vmSend(text){
     if(!voiceMode) return;
     addMsg('ai', T().error);
     setVM('speaking');
+    vmSpeakingText = normalizeForEcho(T().error);
     vmStartRec(true);
     speak(T().error, true, afterSpeak);
   }
