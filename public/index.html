@@ -868,25 +868,15 @@ function createRecognition(){
   rec.continuous = false;
   const mySeq = ++recSeq;
   let text = '';
-  let bargedIn = false; // true once real (non-echo) speech has promoted us out of 'speaking'
   rec.onresult = (e)=>{
     if(mySeq !== recSeq || !voiceMode) return;
     let final='', interim='';
     for(const r of e.results){ (r.isFinal ? final += r[0].transcript : interim += r[0].transcript); }
     const heard = (final || interim).trim();
-    if(vmState === 'speaking' && !bargedIn){
-      // Without headphones the mic picks up the AI's own voice from the
-      // speaker. If most of what we "heard" also appears in the reply that's
-      // currently playing, treat it as echo, not a real interruption.
-      if(isLikelyEcho(heard, 'during')) return;
-      // Real barge-in: the user started talking over the AI — stop it
-      // immediately instead of waiting for playback to finish.
-      bargedIn = true;
-      stopSpeaking();
-      setVM('listening');
-    }
-    if(vmState !== 'listening') return; // still speaking (echo) — don't record it as the answer
-    if(!bargedIn && isLikelyEcho(heard, 'after')) return; // trailing echo of the reply that just ended
+    // The mic is closed while the AI talks, so nothing should arrive then —
+    // but recognition can deliver audio captured just before it closed.
+    if(vmState !== 'listening') return;
+    if(isLikelyEcho(heard, 'after')) return; // trailing echo of the reply that just ended
     text = heard;
     vmText = text;
     vmCaption.classList.remove('dim');
@@ -939,10 +929,8 @@ function setVM(state){
   const labels = {listening:T().vmListening, thinking:T().vmThinking, speaking:T().vmSpeaking, muted:T().vmMuted};
   vmStatus.textContent = labels[state] || '';
 }
-/* background=true keeps the current visual/logical state (used to listen
-   for barge-in while the AI is still talking) instead of switching to
-   'listening' outright. */
-function vmStartRec(background){
+/* Open the mic and start listening for the user's next question. */
+function vmStartRec(){
   if(!SR || !voiceMode || vmMuted) return;
   vmText = '';
   if(recognition){
@@ -952,7 +940,20 @@ function vmStartRec(background){
   recognition = createRecognition();
   recognition.lang = T().srLang;
   try{ recognition.start(); vmListening = true; }catch(e){ vmListening = false; }
-  if(!background) setVM('listening');
+  setVM('listening');
+}
+
+/* Close the mic completely. Used while the AI is talking: if the mic is off
+   it physically cannot pick the reply back up off the speaker, which is the
+   only fully reliable way to stop the AI hearing (and answering) itself. */
+function vmStopRec(){
+  recSeq++;                      // retire events from the session being closed
+  if(recognition){
+    recognition.onresult = null; recognition.onend = null; recognition.onerror = null;
+    try{ recognition.abort ? recognition.abort() : recognition.stop(); }catch(e){}
+    recognition = null;
+  }
+  vmListening = false;
 }
 
 /* ---- mic supervisor ----
@@ -982,12 +983,16 @@ function vmPlaybackProgressing(){
 
 function vmKeepMicLive(){
   if(!voiceMode || vmMuted) return;
-  if(vmState === 'thinking') return; // vmSend re-opens the mic as the reply starts
-  if(!vmListening) vmStartRec(vmState === 'speaking');
-  // never stay stuck on "Speaking…" when no audio is actually coming out
-  if(vmState === 'speaking' && Date.now() - vmSpeakStartedAt > 1500 && !vmPlaybackProgressing()){
-    afterSpeak();
+  if(vmState === 'speaking'){
+    // Mic stays shut for the whole reply. Without this the app would be
+    // listening to its own voice — but that also means playback finishing is
+    // the ONLY way back to listening, so if the audio stalls or never fires
+    // 'ended' we have to notice and reopen the mic ourselves.
+    if(Date.now() - vmSpeakStartedAt > 1500 && !vmPlaybackProgressing()) afterSpeak();
+    return;
   }
+  if(vmState === 'thinking') return; // reply is imminent; mic reopens when it ends
+  if(!vmListening) vmStartRec();
 }
 /* Called when the reply is done — either playback finished, a barge-in
    already ended it, or the supervisor found playback stalled. Only flips
@@ -1057,7 +1062,7 @@ async function vmSend(text){
     vmSpeakStartedAt = Date.now();
     vmLastAudioPos = -1; vmAudioStalledSince = 0;
     vmSpeakingWords = normalizeForEcho(reply).split(' ').filter(Boolean);
-    vmStartRec(true); // listen in the background so the user can interrupt
+    vmStopRec();      // mic off while it talks, so it can't hear itself
     speak(reply, true, afterSpeak);
   }catch(err){
     console.error(err);
@@ -1067,7 +1072,7 @@ async function vmSend(text){
     vmSpeakStartedAt = Date.now();
     vmLastAudioPos = -1; vmAudioStalledSince = 0;
     vmSpeakingWords = normalizeForEcho(T().error).split(' ').filter(Boolean);
-    vmStartRec(true);
+    vmStopRec();
     speak(T().error, true, afterSpeak);
   }
 }

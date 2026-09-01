@@ -126,10 +126,15 @@ function buildDom(){
   await sleep(400);
   check('Reply is speaking', overlay.classList.contains('speaking'), 'state=' + overlay.className);
 
-  console.log('\n== The AI hears its own reply, streamed as real interim results ==');
+  console.log('\n== Mic is closed while the AI talks ==');
   const userMsgsBefore = $$('.msg.user').length;
   const askedBefore = window.__asked;
 
+  check('No open mic session during the reply', !activeRec(),
+    'mic is open while the AI is speaking — it can hear itself');
+
+  // even if the recognizer hands over audio it captured as the mic closed,
+  // the AI's own words must never be taken as a question
   await stream(ECHO_FINAL, {stepMs:50});
   await sleep(600);
 
@@ -144,17 +149,11 @@ function buildDom(){
     overlay.classList.contains('speaking'),
     'state=' + overlay.className);
 
-  console.log('\n== A real interruption still works ==');
-  await sleep(200);
-  const okBarge = await stream('actually can we talk about my sleep schedule instead', {stepMs:50});
-  check('Interruption reached the mic', okBarge);
-  await sleep(700);
-  check('Real interruption was heard and sent',
-    ($$('.msg.user').slice(-1)[0]||{textContent:''}).textContent.includes('sleep schedule'),
-    'last user msg: "' + ($$('.msg.user').slice(-1)[0]||{textContent:'none'}).textContent + '"');
-
-  console.log('\n== A normal follow-up after the reply finishes ==');
+  console.log('\n== Mic reopens once the reply finishes ==');
   await sleep(3200);   // let that reply play out fully
+  check('Listening again after the reply', overlay.classList.contains('listening'),
+    'state=' + overlay.className);
+  check('Mic session is open again', !!activeRec(), 'mic never reopened');
   const before2 = $$('.msg.user').length;
   await stream('what can I do about it tonight');
   await sleep(700);

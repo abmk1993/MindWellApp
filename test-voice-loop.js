@@ -108,6 +108,7 @@ function check(name, cond, detail=''){
 
   // speak an utterance into whichever recognition session is live
   async function say(text){
+    await waitForMic();
     const rec = activeRec();
     if(!rec) return false;
     const words = [{transcript:text}]; words.isFinal = true;
@@ -115,6 +116,15 @@ function check(name, cond, detail=''){
     rec._release();            // user stopped talking -> session ends
     await sleep(900);          // let onend -> vmSend -> fetch -> speak -> finish run
     return true;
+  }
+  // the mic is deliberately closed while the AI talks, so wait for it to
+  // reopen before speaking — as a real person would
+  async function waitForMic(ms=1500){
+    for(let waited = 0; waited <= ms; waited += 50){
+      if(activeRec()) return true;
+      await sleep(50);
+    }
+    return false;
   }
 
   console.log('\n== Voice mode: multi-turn conversation ==');
@@ -154,9 +164,9 @@ function check(name, cond, detail=''){
     !!lastAi3 && lastAi3.textContent.includes('third question about focus'),
     'last AI msg: ' + (lastAi3 ? lastAi3.textContent : 'none'));
 
-  console.log('\n== Barge-in (talking over the reply) ==');
+  console.log('\n== Mic is closed while the AI is talking ==');
   await sleep(200);
-  // start a turn whose reply we will interrupt
+  // start a turn and inspect the app mid-reply
   const rec = activeRec();
   if(rec){
     const w = [{transcript:'tell me a long story'}]; w.isFinal = true;
@@ -165,55 +175,34 @@ function check(name, cond, detail=''){
     await sleep(200); // solidly mid-reply now
   }
   check('Speaking state during reply', overlay.classList.contains('speaking'), 'state=' + overlay.className);
-  const bargeRec = activeRec();
-  check('Listening in background during reply', !!bargeRec, 'no background session to hear an interruption');
-  if(bargeRec){
-    const w2 = [{transcript:'wait stop I changed my mind'}]; w2.isFinal = true;
-    if(bargeRec.onresult) bargeRec.onresult({results:[w2]});
-    await sleep(30);
-    check('Barge-in switches to listening', overlay.classList.contains('listening'), 'state=' + overlay.className);
-    bargeRec._release();
-    await sleep(900);
-    const aiAfterBarge = $$('.msg.ai').slice(-1)[0];
-    check('Barge-in question gets answered',
-      !!aiAfterBarge && aiAfterBarge.textContent.includes('changed my mind'),
-      'last AI msg: ' + (aiAfterBarge ? aiAfterBarge.textContent : 'none'));
-  }
+  check('No mic session while the reply plays', !activeRec(),
+    'mic is open during playback — it can hear its own voice');
 
-  console.log('\n== Echo rejection (AI hearing its own voice) ==');
-  await sleep(250);
-  const rec2 = activeRec();
-  if(rec2){
-    const w = [{transcript:'why do I feel tired'}]; w.isFinal = true;
-    if(rec2.onresult) rec2.onresult({results:[w]});
-    rec2._release();
-    await sleep(200); // solidly mid-reply
-  }
-  check('Speaking after new question', overlay.classList.contains('speaking'), 'state=' + overlay.className);
-  const echoRec = activeRec();
-  if(echoRec){
-    // mic picks up the AI's own reply text (with a typical recognition error)
-    const echoed = 'reply to why do I feel tired';
-    const w3 = [{transcript:echoed}]; w3.isFinal = true;
-    if(echoRec.onresult) echoRec.onresult({results:[w3]});
-    await sleep(30);
-    check('Echo does NOT interrupt the reply', overlay.classList.contains('speaking'),
-      'state=' + overlay.className + ' (AI cut itself off on its own voice)');
-  }
+  console.log('\n== Tapping the orb interrupts and starts listening ==');
+  $('#orb').dispatchEvent(new window.Event('click', {bubbles:true}));
+  await sleep(60);
+  check('Orb tap switches to listening', overlay.classList.contains('listening'), 'state=' + overlay.className);
+  check('Orb tap reopens the mic', !!activeRec(), 'mic did not reopen after tapping the orb');
+  const afterTap = await say('actually lets talk about my sleep instead');
+  check('Question after orb tap is heard', afterTap);
+  const aiAfterTap = $$('.msg.ai').slice(-1)[0];
+  check('Question after orb tap is answered',
+    !!aiAfterTap && aiAfterTap.textContent.includes('my sleep instead'),
+    'last AI msg: ' + (aiAfterTap ? aiAfterTap.textContent : 'none'));
 
   console.log('\n== Trailing echo just AFTER the reply ends ==');
   // The speaker is still emitting the tail of the reply (and the recognizer
   // lags behind the audio), so the AI's own words can land right after the
-  // state has already flipped back to 'listening'. They must not be sent as
-  // if they were the user's next question.
-  await sleep(900);
+  // mic reopens. They must not be sent as if they were the user's question.
+  await sleep(300);
   check('Listening after reply finished', overlay.classList.contains('listening'), 'state=' + overlay.className);
   const aiCountBefore = $$('.msg.ai').length;
   const userCountBefore = $$('.msg.user').length;
   const tailRec = activeRec();
   check('Live session after reply', !!tailRec);
   if(tailRec){
-    const tail = [{transcript:'reply to why do I feel tired'}]; tail.isFinal = true;
+    // echo of the reply that just played, as the mic would mishear it
+    const tail = [{transcript:'reply to actually lets talk about my sleep instead'}]; tail.isFinal = true;
     if(tailRec.onresult) tailRec.onresult({results:[tail]});
     tailRec._release();
     await sleep(900);
