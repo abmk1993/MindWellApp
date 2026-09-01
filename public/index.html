@@ -778,16 +778,42 @@ let vmListening = false;
 function normalizeForEcho(s){
   return s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu,'').replace(/\s+/g,' ').trim();
 }
-/* Fraction of `heardWords` that also appear in `speakingWords`. Word-overlap
-   rather than a substring/exact match, because speech recognition of the
-   AI's own synthesized voice bouncing off a speaker is rarely word-perfect —
-   one misheard word would break a strict substring check and make real echo
-   look like a genuine interruption. */
-function echoOverlapRatio(heardWords, speakingWords){
-  if(!heardWords.length || !speakingWords.size) return 0;
-  let matches = 0;
-  for(const w of heardWords){ if(speakingWords.has(w)) matches++; }
-  return matches / heardWords.length;
+/* Longest run of consecutive words shared by the two word sequences. */
+function longestCommonRun(heardWords, replyWords){
+  let best = 0;
+  const row = new Array(replyWords.length + 1).fill(0);
+  for(let i = 1; i <= heardWords.length; i++){
+    let diag = 0;
+    for(let j = 1; j <= replyWords.length; j++){
+      const above = row[j];
+      if(heardWords[i-1] === replyWords[j-1]){
+        row[j] = diag + 1;
+        if(row[j] > best) best = row[j];
+      }else row[j] = 0;
+      diag = above;
+    }
+  }
+  return best;
+}
+/* The speaker is still emitting the tail of a reply after the synthesizer
+   reports it finished, and recognition lags behind the audio it processes —
+   so the AI's own words keep arriving for a moment after we've switched back
+   to listening. Without this grace window they get sent as the user's next
+   question and the AI ends up answering itself. */
+const ECHO_GRACE_MS = 1500;
+let vmReplyGraceUntil = 0;
+/* Echo repeats the reply verbatim, so it lines up as a long CONSECUTIVE run
+   of the same words. A genuine question only shares scattered common words
+   ("you", "feel", "about") — counting those as a match would silently swallow
+   whatever the user actually asked. */
+function isLikelyEcho(heard, duringSpeech){
+  if(!vmSpeakingWords.length) return false;
+  if(!duringSpeech && Date.now() > vmReplyGraceUntil) return false;
+  const words = normalizeForEcho(heard).split(' ').filter(Boolean);
+  if(!words.length) return true;
+  if(duringSpeech && words.join('').length < 3) return true; // too little to interrupt on
+  const run = longestCommonRun(words, vmSpeakingWords);
+  return run >= 3 && run >= words.length * 0.5;
 }
 function createRecognition(){
   const rec = new SR();
@@ -802,13 +828,10 @@ function createRecognition(){
     for(const r of e.results){ (r.isFinal ? final += r[0].transcript : interim += r[0].transcript); }
     const heard = (final || interim).trim();
     if(vmState === 'speaking' && !bargedIn){
-      // Without headphones the mic often picks up the AI's own voice from the
+      // Without headphones the mic picks up the AI's own voice from the
       // speaker. If most of what we "heard" also appears in the reply that's
       // currently playing, treat it as echo, not a real interruption.
-      const words = normalizeForEcho(heard).split(' ').filter(Boolean);
-      const overlap = echoOverlapRatio(words, vmSpeakingWords);
-      const isEcho = words.join('').length < 3 || overlap >= 0.5;
-      if(isEcho) return;
+      if(isLikelyEcho(heard, true)) return;
       // Real barge-in: the user started talking over the AI — stop it
       // immediately instead of waiting for playback to finish.
       bargedIn = true;
@@ -817,6 +840,7 @@ function createRecognition(){
       setVM('listening');
     }
     if(vmState !== 'listening') return; // still speaking (echo) — don't record it as the answer
+    if(!bargedIn && isLikelyEcho(heard, false)) return; // trailing echo of the reply that just ended
     text = heard;
     vmText = text;
     vmCaption.classList.remove('dim');
@@ -854,8 +878,7 @@ let voiceMode = false;
 let vmState = 'idle';      // listening | thinking | speaking | muted
 let vmText = '';
 let vmMuted = false;
-let vmSpeakingText = '';   // normalized text of the reply currently playing, for echo filtering
-let vmSpeakingWords = new Set();
+let vmSpeakingWords = [];  // words of the reply currently playing, for echo filtering
 let vmBargedIn = false;    // true once the user has genuinely interrupted the current reply
 
 const voiceOverlay = document.getElementById('voiceOverlay');
@@ -895,9 +918,10 @@ function vmStartRec(background){
    start a brand-new listening session so the next turn is never left with a
    stale or half-dead recognizer. */
 function afterSpeak(){
+  // keep remembering what was just said, so the tail of it bleeding into the
+  // mic isn't mistaken for the user's next question
+  vmReplyGraceUntil = Date.now() + ECHO_GRACE_MS;
   if(vmBargedIn){ vmBargedIn = false; return; }
-  vmSpeakingText = '';
-  vmSpeakingWords = new Set();
   if(!voiceMode) return;
   vmStartRec();
 }
@@ -936,6 +960,7 @@ function exitVoiceMode(){
   vmListening = false;
 }
 async function vmSend(text){
+  vmSpeakingWords = []; // a real turn began — stop filtering against the old reply
   setVM('thinking');
   vmCaption.classList.remove('dim');
   vmCaption.textContent = text;
@@ -951,8 +976,7 @@ async function vmSend(text){
     vmCaption.classList.add('dim');
     vmCaption.textContent = reply.length > 220 ? reply.slice(0,220)+'…' : reply;
     vmBargedIn = false;
-    vmSpeakingText = normalizeForEcho(reply);
-    vmSpeakingWords = new Set(vmSpeakingText.split(' ').filter(Boolean));
+    vmSpeakingWords = normalizeForEcho(reply).split(' ').filter(Boolean);
     vmStartRec(true); // listen in the background so the user can interrupt
     speak(reply, true, afterSpeak);
   }catch(err){
@@ -961,8 +985,7 @@ async function vmSend(text){
     addMsg('ai', T().error);
     setVM('speaking');
     vmBargedIn = false;
-    vmSpeakingText = normalizeForEcho(T().error);
-    vmSpeakingWords = new Set(vmSpeakingText.split(' ').filter(Boolean));
+    vmSpeakingWords = normalizeForEcho(T().error).split(' ').filter(Boolean);
     vmStartRec(true);
     speak(T().error, true, afterSpeak);
   }

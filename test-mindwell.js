@@ -32,12 +32,16 @@ function check(name, cond, detail=''){
         onvoiceschanged: null
       };
       // ---- stub speech recognition ----
+      // A fresh instance is created per listening turn, so __recInstance
+      // always points at the current one.
       window.webkitSpeechRecognition = class {
         constructor(){ window.__recInstance = this; }
         start(){ this._started = true; }
         stop(){ this._started = false; if(this.onend) this.onend(); }
         abort(){ this._started = false; }
       };
+      window.HTMLMediaElement.prototype.play = function(){ return Promise.resolve(); };
+      window.HTMLMediaElement.prototype.pause = function(){};
       // ---- stub localStorage quirks ----
       // jsdom has localStorage; fine.
       // ---- stub fetch (Claude API + TTS relay) ----
@@ -161,43 +165,43 @@ function check(name, cond, detail=''){
   check('Voice mode button present', !!$('#voiceModeBtn'));
 
   console.log('\n== 11. ChatGPT-style voice mode ==');
-  const rec = window.__recInstance;
+  const rec = () => window.__recInstance;   // recreated each turn
   const overlay = $('#voiceOverlay');
   $('#voiceModeBtn').dispatchEvent(new window.Event('click', {bubbles:true}));
   await sleep(50);
   check('Overlay opens', overlay.classList.contains('open'));
   check('State = listening', overlay.classList.contains('listening'));
   check('Status text localized (ru)', $('#vmStatus').textContent.includes('Слушаю'));
-  check('Recognition started', rec._started === true);
-  check('Recognition lang follows app language', rec.lang === 'ru-RU');
+  check('Recognition started', rec()._started === true);
+  check('Recognition lang follows app language', rec().lang === 'ru-RU');
 
   // simulate the user speaking
   const words = [{transcript:'мне грустно и одиноко'}]; words.isFinal = true;
-  rec.onresult({results:[words]});
+  rec().onresult({results:[words]});
   check('Live caption shows transcript', $('#vmCaption').textContent.includes('грустно'));
-  rec.onend();               // speech ended -> should send
+  rec().onend();             // speech ended -> should send
   check('State = thinking after speech ends', overlay.classList.contains('thinking'));
   await sleep(330);          // fetch resolves, TTS stub speaks, loop resumes
   check('User voice message in chat', $$('.msg.user').some(m=>m.textContent.includes('грустно')));
   check('AI reply in chat', $$('.msg.ai').filter(m=>m.textContent.startsWith('Test reply')).length >= 3);
   check('Reply was spoken', spoken.some(t=>t.includes('Test reply')));
-  check('Loop resumes: listening again', overlay.classList.contains('listening') && rec._started);
+  check('Loop resumes: listening again', overlay.classList.contains('listening') && rec()._started);
 
   // silence -> keeps listening
-  rec.onend();
+  rec().onend();
   await sleep(450);
-  check('Silence restarts listening', overlay.classList.contains('listening') && rec._started);
+  check('Silence restarts listening', overlay.classList.contains('listening') && rec()._started);
 
   // mute / unmute
   $('#vmMuteBtn').dispatchEvent(new window.Event('click', {bubbles:true}));
-  check('Mute state applied', overlay.classList.contains('muted') && rec._started === false);
+  check('Mute state applied', overlay.classList.contains('muted') && rec()._started === false);
   $('#vmMuteBtn').dispatchEvent(new window.Event('click', {bubbles:true}));
-  check('Unmute resumes listening', overlay.classList.contains('listening') && rec._started === true);
+  check('Unmute resumes listening', overlay.classList.contains('listening') && rec()._started === true);
 
   // close
   $('#vmCloseBtn').dispatchEvent(new window.Event('click', {bubbles:true}));
   check('Overlay closes', !overlay.classList.contains('open'));
-  check('Recognition aborted on close', rec._started === false);
+  check('Recognition aborted on close', rec()._started === false);
 
   // re-entering voice mode works after close
   $('#voiceModeBtn').dispatchEvent(new window.Event('click', {bubbles:true}));
