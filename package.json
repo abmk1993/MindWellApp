@@ -4,7 +4,8 @@
   "description": "MindWell - AI voice wellness coach",
   "main": "index.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node test-mindwell.js && node test-voice-loop.js && node test-voice-tts.js"
   },
   "keywords": [],
   "author": "",

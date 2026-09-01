@@ -676,9 +676,20 @@ document.addEventListener('pointerdown', unlockTTS, {once:false});
 document.addEventListener('keydown', unlockTTS, {once:false});
 
 let currentAudio = null;
+/* One <audio> element is reused for every reply (see speak()), so its
+   handlers outlive the reply that installed them. Bumping this generation
+   counter on every stop retires the old callbacks, otherwise a stale
+   'error'/'ended' from the previous clip fires the previous reply's cleanup
+   and tears down the recognition session that is capturing the user. */
+let speakSeq = 0;
 function stopSpeaking(){
+  speakSeq++;
   if('speechSynthesis' in window) speechSynthesis.cancel();
-  if(currentAudio){ try{ currentAudio.pause(); }catch(e){} currentAudio = null; }
+  if(currentAudio){
+    currentAudio.onended = null; currentAudio.onerror = null; currentAudio.onplay = null;
+    try{ currentAudio.pause(); }catch(e){}
+    currentAudio = null;
+  }
   avatar.classList.remove('speaking');
 }
 
@@ -720,25 +731,41 @@ function speakNative(clean, finish){
 async function speak(text, force, onDone){
   if(!voiceReplies && !force){ if(onDone) onDone(); return; }
   stopSpeaking();
+  const mySpeak = speakSeq;            // retired as soon as anything stops this reply
   const clean = text.replace(/[*_#`>~]/g,'').replace(/\s+/g,' ').trim();
   if(!clean){ if(onDone) onDone(); return; }
   let done = false;
-  const finish = ()=>{ avatar.classList.remove('speaking'); if(!done){ done = true; if(onDone) onDone(); } };
+  const finish = ()=>{
+    if(mySpeak !== speakSeq) return;   // a newer reply (or a barge-in) owns playback now
+    avatar.classList.remove('speaking');
+    if(!done){ done = true; if(onDone) onDone(); }
+  };
 
   const url = await fetchElevenAudioURL(clean);
+  if(mySpeak !== speakSeq){ if(url) URL.revokeObjectURL(url); return; } // superseded while fetching
   if(url){
     // Reuse the SAME <audio> element unlocked in unlockTTS() during the user's
     // tap. iOS Safari grants autoplay permission per-element, not per-page —
     // a brand-new Audio(url) created here (after the async fetch above) would
     // never have been touched by a user gesture and iOS silently blocks it.
     const audioEl = silentAudio || new Audio();
-    audioEl.src = url;
-    currentAudio = audioEl;
-    const cleanup = ()=>{ URL.revokeObjectURL(url); if(currentAudio===audioEl) currentAudio=null; finish(); };
+    const cleanup = ()=>{
+      if(mySpeak !== speakSeq) return;  // belongs to a reply we've already moved past
+      URL.revokeObjectURL(url);
+      if(currentAudio===audioEl) currentAudio=null;
+      finish();
+    };
+    // install handlers before assigning src, so swapping the source on this
+    // shared element can't deliver an 'error' to the previous reply's cleanup
     audioEl.onplay = ()=> avatar.classList.add('speaking');
     audioEl.onended = cleanup;
     audioEl.onerror = cleanup;
-    audioEl.play().catch(()=>{ URL.revokeObjectURL(url); currentAudio=null; speakNative(clean, finish); });
+    audioEl.src = url;
+    currentAudio = audioEl;
+    audioEl.play().catch(()=>{
+      if(mySpeak !== speakSeq) return;
+      URL.revokeObjectURL(url); currentAudio=null; speakNative(clean, finish);
+    });
     return;
   }
   speakNative(clean, finish);
@@ -835,7 +862,6 @@ function createRecognition(){
       // Real barge-in: the user started talking over the AI — stop it
       // immediately instead of waiting for playback to finish.
       bargedIn = true;
-      vmBargedIn = true;
       stopSpeaking();
       setVM('listening');
     }
@@ -849,17 +875,13 @@ function createRecognition(){
   rec.onend = ()=>{
     vmListening = false;
     if(mySeq !== recSeq || !voiceMode || vmMuted) return;
-    if(text.trim()){
-      vmSend(text);
-    }else if(vmState === 'listening'){
-      // silence during a genuine listening turn — keep listening.
-      // (If this was a background listen during 'speaking' that simply
-      // timed out with nothing meaningful heard, don't keep restarting it —
-      // repeatedly cycling SpeechRecognition on mobile browsers is unstable.
-      // The manual tap-to-interrupt still works, and afterSpeak() always
-      // starts a clean session the moment the reply finishes.)
-      setTimeout(()=>{ if(voiceMode && !vmMuted && mySeq===recSeq && vmState==='listening') vmStartRec(); }, 350);
-    }
+    // Sessions end on their own after a stretch of silence (continuous=false).
+    // Restarting is NOT decided here — vmKeepMicLive() owns that, so there is
+    // exactly one path back to listening and no state can strand the mic. We
+    // just nudge it straight away instead of waiting for the next tick, so the
+    // gap between sessions stays too short to clip the user's first word.
+    if(text.trim()) vmSend(text);
+    else setTimeout(vmKeepMicLive, 120);
   };
   rec.onerror = (e)=>{
     vmListening = false;
@@ -879,7 +901,6 @@ let vmState = 'idle';      // listening | thinking | speaking | muted
 let vmText = '';
 let vmMuted = false;
 let vmSpeakingWords = [];  // words of the reply currently playing, for echo filtering
-let vmBargedIn = false;    // true once the user has genuinely interrupted the current reply
 
 const voiceOverlay = document.getElementById('voiceOverlay');
 const vmStatus = document.getElementById('vmStatus');
@@ -910,20 +931,52 @@ function vmStartRec(background){
   try{ recognition.start(); vmListening = true; }catch(e){ vmListening = false; }
   if(!background) setVM('listening');
 }
-/* Called when speak() resolves — either the reply finished on its own, or
-   (on some browsers) speechSynthesis.cancel() fires the utterance's error
-   event after a barge-in already handled everything. In the barge-in case,
-   recognition is already running and mid-capture — leave it alone so we
-   don't cut off the question the user is still asking. Otherwise, always
-   start a brand-new listening session so the next turn is never left with a
-   stale or half-dead recognizer. */
+
+/* ---- mic supervisor ----
+   A recognition session ends by itself after a stretch of silence, start()
+   can fail while a previous session is still releasing, and playback can
+   stall without ever firing 'ended'. Relying on any single callback to
+   resume listening leaves the app deaf whenever that callback doesn't come.
+   So one timer owns it: whenever voice mode is open and unmuted, a session
+   must be running — during 'speaking' too, which is what makes barge-in
+   work for the whole reply. Anything that fails is simply retried. */
+const VM_SUPERVISOR_MS = 400;
+let vmSupervisor = null;
+let vmSpeakStartedAt = 0;
+let vmLastAudioPos = -1;
+let vmAudioStalledSince = 0;
+
+function vmPlaybackProgressing(){
+  const synthBusy = ('speechSynthesis' in window) && speechSynthesis.speaking;
+  if(synthBusy) return true;
+  if(!currentAudio || currentAudio.paused) return false;
+  const pos = currentAudio.currentTime || 0;
+  if(pos !== vmLastAudioPos){ vmLastAudioPos = pos; vmAudioStalledSince = 0; return true; }
+  // position frozen — give it a moment before declaring playback dead
+  if(!vmAudioStalledSince) vmAudioStalledSince = Date.now();
+  return Date.now() - vmAudioStalledSince < 2000;
+}
+
+function vmKeepMicLive(){
+  if(!voiceMode || vmMuted) return;
+  if(vmState === 'thinking') return; // vmSend re-opens the mic as the reply starts
+  if(!vmListening) vmStartRec(vmState === 'speaking');
+  // never stay stuck on "Speaking…" when no audio is actually coming out
+  if(vmState === 'speaking' && Date.now() - vmSpeakStartedAt > 1500 && !vmPlaybackProgressing()){
+    afterSpeak();
+  }
+}
+/* Called when the reply is done — either playback finished, a barge-in
+   already ended it, or the supervisor found playback stalled. Only flips
+   state; the mic itself is the supervisor's job, so a session that is
+   already mid-capture (the user interrupting) is never torn down here. */
 function afterSpeak(){
   // keep remembering what was just said, so the tail of it bleeding into the
   // mic isn't mistaken for the user's next question
   vmReplyGraceUntil = Date.now() + ECHO_GRACE_MS;
-  if(vmBargedIn){ vmBargedIn = false; return; }
   if(!voiceMode) return;
-  vmStartRec();
+  if(vmState === 'speaking') setVM('listening');
+  vmKeepMicLive();
 }
 function enterVoiceMode(){
   if(!SR){
@@ -948,9 +1001,12 @@ function enterVoiceMode(){
   voiceOverlay.classList.add('open');
   stopSpeaking();
   vmStartRec();
+  clearInterval(vmSupervisor);
+  vmSupervisor = setInterval(vmKeepMicLive, VM_SUPERVISOR_MS);
 }
 function exitVoiceMode(){
   voiceMode = false;
+  clearInterval(vmSupervisor); vmSupervisor = null;
   voiceOverlay.classList.remove('open');
   setVM('idle');
   vmCaption.textContent = '';
@@ -975,7 +1031,8 @@ async function vmSend(text){
     setVM('speaking');
     vmCaption.classList.add('dim');
     vmCaption.textContent = reply.length > 220 ? reply.slice(0,220)+'…' : reply;
-    vmBargedIn = false;
+    vmSpeakStartedAt = Date.now();
+    vmLastAudioPos = -1; vmAudioStalledSince = 0;
     vmSpeakingWords = normalizeForEcho(reply).split(' ').filter(Boolean);
     vmStartRec(true); // listen in the background so the user can interrupt
     speak(reply, true, afterSpeak);
@@ -984,7 +1041,8 @@ async function vmSend(text){
     if(!voiceMode) return;
     addMsg('ai', T().error);
     setVM('speaking');
-    vmBargedIn = false;
+    vmSpeakStartedAt = Date.now();
+    vmLastAudioPos = -1; vmAudioStalledSince = 0;
     vmSpeakingWords = normalizeForEcho(T().error).split(' ').filter(Boolean);
     vmStartRec(true);
     speak(T().error, true, afterSpeak);
