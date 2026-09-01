@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test-mindwell.js && node test-voice-loop.js && node test-voice-tts.js"
+    "test": "node test-mindwell.js && node test-voice-loop.js && node test-voice-tts.js && node test-voice-echo.js"
   },
   "keywords": [],
   "author": "",

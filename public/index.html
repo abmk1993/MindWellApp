@@ -822,23 +822,43 @@ function longestCommonRun(heardWords, replyWords){
   }
   return best;
 }
+/* Fraction of the heard words that appear anywhere in the reply. */
+function overlapRatio(heardWords, replyWords){
+  if(!heardWords.length || !replyWords.length) return 0;
+  const set = new Set(replyWords);
+  let matches = 0;
+  for(const w of heardWords){ if(set.has(w)) matches++; }
+  return matches / heardWords.length;
+}
 /* The speaker is still emitting the tail of a reply after the synthesizer
    reports it finished, and recognition lags behind the audio it processes —
    so the AI's own words keep arriving for a moment after we've switched back
    to listening. Without this grace window they get sent as the user's next
    question and the AI ends up answering itself. */
-const ECHO_GRACE_MS = 1500;
+const ECHO_GRACE_MS = 2500;
 let vmReplyGraceUntil = 0;
-/* Echo repeats the reply verbatim, so it lines up as a long CONSECUTIVE run
-   of the same words. A genuine question only shares scattered common words
-   ("you", "feel", "about") — counting those as a match would silently swallow
-   whatever the user actually asked. */
-function isLikelyEcho(heard, duringSpeech){
+/* Recognition delivers interim results that grow a word or two at a time, so
+   the opening fragment of the AI's own voice ("I hear…") is far too short to
+   tell apart from a real interruption. Deciding "user" wrongly is the
+   expensive mistake — the reply gets cut off and the AI answers its own
+   voice — so while it is speaking we need real evidence before believing it.
+   mode: 'during' (reply playing) | 'after' (just finished) | 'final'. */
+const MIN_BARGE_WORDS = 4;
+function isLikelyEcho(heard, mode){
   if(!vmSpeakingWords.length) return false;
-  if(!duringSpeech && Date.now() > vmReplyGraceUntil) return false;
   const words = normalizeForEcho(heard).split(' ').filter(Boolean);
   if(!words.length) return true;
-  if(duringSpeech && words.join('').length < 3) return true; // too little to interrupt on
+  if(mode === 'during'){
+    if(words.length < MIN_BARGE_WORDS) return true;   // not enough to interrupt on
+    if(longestCommonRun(words, vmSpeakingWords) >= 3) return true;
+    // Backstop for echo too garbled to line up verbatim. Kept deliberately
+    // strict: on a short utterance a couple of ordinary shared words already
+    // reach a loose ratio, which would swallow a real interruption.
+    return words.length >= 6 && overlapRatio(words, vmSpeakingWords) >= 0.75;
+  }
+  if(mode === 'after' && Date.now() > vmReplyGraceUntil) return false;
+  // Once the reply is over, only a verbatim-looking run counts, so a genuine
+  // follow-up that merely reuses common words still gets through.
   const run = longestCommonRun(words, vmSpeakingWords);
   return run >= 3 && run >= words.length * 0.5;
 }
@@ -858,7 +878,7 @@ function createRecognition(){
       // Without headphones the mic picks up the AI's own voice from the
       // speaker. If most of what we "heard" also appears in the reply that's
       // currently playing, treat it as echo, not a real interruption.
-      if(isLikelyEcho(heard, true)) return;
+      if(isLikelyEcho(heard, 'during')) return;
       // Real barge-in: the user started talking over the AI — stop it
       // immediately instead of waiting for playback to finish.
       bargedIn = true;
@@ -866,7 +886,7 @@ function createRecognition(){
       setVM('listening');
     }
     if(vmState !== 'listening') return; // still speaking (echo) — don't record it as the answer
-    if(!bargedIn && isLikelyEcho(heard, false)) return; // trailing echo of the reply that just ended
+    if(!bargedIn && isLikelyEcho(heard, 'after')) return; // trailing echo of the reply that just ended
     text = heard;
     vmText = text;
     vmCaption.classList.remove('dim');
@@ -880,7 +900,10 @@ function createRecognition(){
     // exactly one path back to listening and no state can strand the mic. We
     // just nudge it straight away instead of waiting for the next tick, so the
     // gap between sessions stays too short to clip the user's first word.
-    if(text.trim()) vmSend(text);
+    // Last line of defence: even if a fragment slipped past the checks above
+    // and latched this session into "the user is talking", never hand the
+    // AI's own words back to it as a question.
+    if(text.trim() && !isLikelyEcho(text, 'final')) vmSend(text);
     else setTimeout(vmKeepMicLive, 120);
   };
   rec.onerror = (e)=>{
