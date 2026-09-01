@@ -812,6 +812,7 @@ function createRecognition(){
       // Real barge-in: the user started talking over the AI — stop it
       // immediately instead of waiting for playback to finish.
       bargedIn = true;
+      vmBargedIn = true;
       stopSpeaking();
       setVM('listening');
     }
@@ -826,12 +827,14 @@ function createRecognition(){
     if(mySeq !== recSeq || !voiceMode || vmMuted) return;
     if(text.trim()){
       vmSend(text);
-    }else if(vmState === 'listening' || vmState === 'speaking'){
-      const wasSpeaking = vmState === 'speaking';
-      // restart quickly while still speaking so background barge-in
-      // listening stays live for the whole reply, longer pause during
-      // genuine silence-retry so we don't hammer the recognizer
-      setTimeout(()=>{ if(voiceMode && !vmMuted && mySeq===recSeq && (vmState==='listening' || vmState==='speaking')) vmStartRec(vmState==='speaking'); }, wasSpeaking ? 50 : 350);
+    }else if(vmState === 'listening'){
+      // silence during a genuine listening turn — keep listening.
+      // (If this was a background listen during 'speaking' that simply
+      // timed out with nothing meaningful heard, don't keep restarting it —
+      // repeatedly cycling SpeechRecognition on mobile browsers is unstable.
+      // The manual tap-to-interrupt still works, and afterSpeak() always
+      // starts a clean session the moment the reply finishes.)
+      setTimeout(()=>{ if(voiceMode && !vmMuted && mySeq===recSeq && vmState==='listening') vmStartRec(); }, 350);
     }
   };
   rec.onerror = (e)=>{
@@ -853,6 +856,7 @@ let vmText = '';
 let vmMuted = false;
 let vmSpeakingText = '';   // normalized text of the reply currently playing, for echo filtering
 let vmSpeakingWords = new Set();
+let vmBargedIn = false;    // true once the user has genuinely interrupted the current reply
 
 const voiceOverlay = document.getElementById('voiceOverlay');
 const vmStatus = document.getElementById('vmStatus');
@@ -883,13 +887,19 @@ function vmStartRec(background){
   try{ recognition.start(); vmListening = true; }catch(e){ vmListening = false; }
   if(!background) setVM('listening');
 }
-/* called when TTS playback finishes on its own (no barge-in) */
+/* Called when speak() resolves — either the reply finished on its own, or
+   (on some browsers) speechSynthesis.cancel() fires the utterance's error
+   event after a barge-in already handled everything. In the barge-in case,
+   recognition is already running and mid-capture — leave it alone so we
+   don't cut off the question the user is still asking. Otherwise, always
+   start a brand-new listening session so the next turn is never left with a
+   stale or half-dead recognizer. */
 function afterSpeak(){
+  if(vmBargedIn){ vmBargedIn = false; return; }
   vmSpeakingText = '';
   vmSpeakingWords = new Set();
   if(!voiceMode) return;
-  if(vmState !== 'listening') setVM('listening');
-  if(!vmListening) vmStartRec();
+  vmStartRec();
 }
 function enterVoiceMode(){
   if(!SR){
@@ -940,6 +950,7 @@ async function vmSend(text){
     setVM('speaking');
     vmCaption.classList.add('dim');
     vmCaption.textContent = reply.length > 220 ? reply.slice(0,220)+'…' : reply;
+    vmBargedIn = false;
     vmSpeakingText = normalizeForEcho(reply);
     vmSpeakingWords = new Set(vmSpeakingText.split(' ').filter(Boolean));
     vmStartRec(true); // listen in the background so the user can interrupt
@@ -949,6 +960,7 @@ async function vmSend(text){
     if(!voiceMode) return;
     addMsg('ai', T().error);
     setVM('speaking');
+    vmBargedIn = false;
     vmSpeakingText = normalizeForEcho(T().error);
     vmSpeakingWords = new Set(vmSpeakingText.split(' ').filter(Boolean));
     vmStartRec(true);
