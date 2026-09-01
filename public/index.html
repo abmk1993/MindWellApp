@@ -778,6 +778,17 @@ let vmListening = false;
 function normalizeForEcho(s){
   return s.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu,'').replace(/\s+/g,' ').trim();
 }
+/* Fraction of `heardWords` that also appear in `speakingWords`. Word-overlap
+   rather than a substring/exact match, because speech recognition of the
+   AI's own synthesized voice bouncing off a speaker is rarely word-perfect —
+   one misheard word would break a strict substring check and make real echo
+   look like a genuine interruption. */
+function echoOverlapRatio(heardWords, speakingWords){
+  if(!heardWords.length || !speakingWords.size) return 0;
+  let matches = 0;
+  for(const w of heardWords){ if(speakingWords.has(w)) matches++; }
+  return matches / heardWords.length;
+}
 function createRecognition(){
   const rec = new SR();
   rec.interimResults = true;
@@ -792,10 +803,11 @@ function createRecognition(){
     const heard = (final || interim).trim();
     if(vmState === 'speaking' && !bargedIn){
       // Without headphones the mic often picks up the AI's own voice from the
-      // speaker. If what we "heard" is basically a chunk of the reply that's
+      // speaker. If most of what we "heard" also appears in the reply that's
       // currently playing, treat it as echo, not a real interruption.
-      const norm = normalizeForEcho(heard);
-      const isEcho = norm.length < 3 || (vmSpeakingText && vmSpeakingText.includes(norm));
+      const words = normalizeForEcho(heard).split(' ').filter(Boolean);
+      const overlap = echoOverlapRatio(words, vmSpeakingWords);
+      const isEcho = words.join('').length < 3 || overlap >= 0.5;
       if(isEcho) return;
       // Real barge-in: the user started talking over the AI — stop it
       // immediately instead of waiting for playback to finish.
@@ -840,6 +852,7 @@ let vmState = 'idle';      // listening | thinking | speaking | muted
 let vmText = '';
 let vmMuted = false;
 let vmSpeakingText = '';   // normalized text of the reply currently playing, for echo filtering
+let vmSpeakingWords = new Set();
 
 const voiceOverlay = document.getElementById('voiceOverlay');
 const vmStatus = document.getElementById('vmStatus');
@@ -873,6 +886,7 @@ function vmStartRec(background){
 /* called when TTS playback finishes on its own (no barge-in) */
 function afterSpeak(){
   vmSpeakingText = '';
+  vmSpeakingWords = new Set();
   if(!voiceMode) return;
   if(vmState !== 'listening') setVM('listening');
   if(!vmListening) vmStartRec();
@@ -927,6 +941,7 @@ async function vmSend(text){
     vmCaption.classList.add('dim');
     vmCaption.textContent = reply.length > 220 ? reply.slice(0,220)+'…' : reply;
     vmSpeakingText = normalizeForEcho(reply);
+    vmSpeakingWords = new Set(vmSpeakingText.split(' ').filter(Boolean));
     vmStartRec(true); // listen in the background so the user can interrupt
     speak(reply, true, afterSpeak);
   }catch(err){
@@ -935,6 +950,7 @@ async function vmSend(text){
     addMsg('ai', T().error);
     setVM('speaking');
     vmSpeakingText = normalizeForEcho(T().error);
+    vmSpeakingWords = new Set(vmSpeakingText.split(' ').filter(Boolean));
     vmStartRec(true);
     speak(T().error, true, afterSpeak);
   }
